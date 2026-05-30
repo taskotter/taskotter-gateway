@@ -62,7 +62,11 @@ async fn routes_adapter_and_emits_usage_event() {
         body["usage_audit_event"]["schema_version"],
         "usage_audit_event.v1"
     );
-    assert_eq!(body["usage_audit_event"]["status"], "stubbed");
+    assert_eq!(body["usage_audit_event"]["status"], "succeeded");
+    assert_eq!(
+        body["usage_audit_event"]["decision_id"],
+        "local-policy:ai.relay"
+    );
 }
 
 #[tokio::test]
@@ -72,6 +76,11 @@ async fn policy_hook_denies_disabled_provider() {
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(body["error"]["code"], "policy_denied");
     assert_eq!(body["error"]["retryable"], false);
+    assert_eq!(
+        body["usage_audit_event"]["schema_version"],
+        "usage_audit_event.v1"
+    );
+    assert_eq!(body["usage_audit_event"]["status"], "denied");
 }
 
 #[tokio::test]
@@ -84,6 +93,11 @@ async fn provider_timeout_has_stable_error_shape() {
     assert_eq!(body["error"]["code"], "provider_timeout");
     assert_eq!(body["error"]["retryable"], true);
     assert_eq!(body["error"]["timeout_ms"], 0);
+    assert_eq!(
+        body["usage_audit_event"]["schema_version"],
+        "usage_audit_event.v1"
+    );
+    assert_eq!(body["usage_audit_event"]["status"], "timeout");
 }
 
 #[test]

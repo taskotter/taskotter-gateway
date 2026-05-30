@@ -16,7 +16,7 @@ use crate::{
     },
     mcp::{resolve_endpoint, McpEndpoint, McpResolution},
     policy::{PolicyCheck, PolicyEngine, PolicySubject},
-    usage::UsageAuditEventV1,
+    usage::{UsageAttemptStatus, UsageAuditEventV1},
 };
 
 #[derive(Clone)]
@@ -65,7 +65,16 @@ pub async fn relay_ai_request(
     let decision = state.policy.evaluate(policy_check).await;
 
     if !decision.allowed {
-        return Err(GatewayError::policy_denied(decision.reason));
+        let usage_audit_event = UsageAuditEventV1::new(
+            payload.request_id,
+            payload.subject,
+            payload.provider,
+            decision.decision_id,
+            UsageAttemptStatus::Denied,
+        );
+        return Err(
+            GatewayError::policy_denied(decision.reason).with_usage_event(usage_audit_event)
+        );
     }
 
     let normalized = NormalizedProviderRequest {
@@ -75,13 +84,25 @@ pub async fn relay_ai_request(
         stream: payload.stream,
         timeout_ms: payload.timeout_ms,
     };
-    let provider_response = state.providers.route(normalized, decision.clone()).await?;
+    let provider_response = match state.providers.route(normalized, decision.clone()).await {
+        Ok(response) => response,
+        Err(error) => {
+            let usage_audit_event = UsageAuditEventV1::new(
+                payload.request_id,
+                payload.subject,
+                payload.provider,
+                decision.decision_id,
+                error.usage_status(),
+            );
+            return Err(error.with_usage_event(usage_audit_event));
+        }
+    };
     let usage_audit_event = UsageAuditEventV1::new(
         payload.request_id,
         payload.subject,
         payload.provider,
         decision.decision_id,
-        "stubbed",
+        UsageAttemptStatus::Succeeded,
     );
 
     Ok(Json(AiRelayResponse {
@@ -97,11 +118,15 @@ pub async fn resolve_mcp_endpoint(Json(endpoint): Json<McpEndpoint>) -> Json<Mcp
 #[derive(Debug, Error)]
 pub enum GatewayError {
     #[error("{message}")]
-    PolicyDenied { message: String },
+    PolicyDenied {
+        message: String,
+        usage_audit_event: Option<UsageAuditEventV1>,
+    },
     #[error("{message}")]
     Timeout {
         message: String,
         timeout_ms: Option<u64>,
+        usage_audit_event: Option<UsageAuditEventV1>,
     },
 }
 
@@ -109,6 +134,7 @@ impl GatewayError {
     pub fn policy_denied(reason: Option<String>) -> Self {
         Self::PolicyDenied {
             message: reason.unwrap_or_else(|| "request denied by policy".to_string()),
+            usage_audit_event: None,
         }
     }
 
@@ -116,6 +142,32 @@ impl GatewayError {
         Self::Timeout {
             message: message.into(),
             timeout_ms,
+            usage_audit_event: None,
+        }
+    }
+
+    fn usage_status(&self) -> UsageAttemptStatus {
+        match self {
+            GatewayError::PolicyDenied { .. } => UsageAttemptStatus::Denied,
+            GatewayError::Timeout { .. } => UsageAttemptStatus::Timeout,
+        }
+    }
+
+    fn with_usage_event(self, usage_audit_event: UsageAuditEventV1) -> Self {
+        match self {
+            GatewayError::PolicyDenied { message, .. } => GatewayError::PolicyDenied {
+                message,
+                usage_audit_event: Some(usage_audit_event),
+            },
+            GatewayError::Timeout {
+                message,
+                timeout_ms,
+                ..
+            } => GatewayError::Timeout {
+                message,
+                timeout_ms,
+                usage_audit_event: Some(usage_audit_event),
+            },
         }
     }
 }
@@ -123,6 +175,8 @@ impl GatewayError {
 #[derive(Debug, Serialize)]
 pub struct ErrorBody {
     pub error: ErrorShape,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_audit_event: Option<UsageAuditEventV1>,
 }
 
 #[derive(Debug, Serialize)]
@@ -136,8 +190,11 @@ pub struct ErrorShape {
 
 impl IntoResponse for GatewayError {
     fn into_response(self) -> Response {
-        let (status, error) = match self {
-            GatewayError::PolicyDenied { message } => (
+        let (status, error, usage_audit_event) = match self {
+            GatewayError::PolicyDenied {
+                message,
+                usage_audit_event,
+            } => (
                 StatusCode::FORBIDDEN,
                 ErrorShape {
                     code: "policy_denied",
@@ -145,10 +202,12 @@ impl IntoResponse for GatewayError {
                     retryable: false,
                     timeout_ms: None,
                 },
+                usage_audit_event,
             ),
             GatewayError::Timeout {
                 message,
                 timeout_ms,
+                usage_audit_event,
             } => (
                 StatusCode::GATEWAY_TIMEOUT,
                 ErrorShape {
@@ -157,9 +216,17 @@ impl IntoResponse for GatewayError {
                     retryable: true,
                     timeout_ms,
                 },
+                usage_audit_event,
             ),
         };
 
-        (status, Json(ErrorBody { error })).into_response()
+        (
+            status,
+            Json(ErrorBody {
+                error,
+                usage_audit_event,
+            }),
+        )
+            .into_response()
     }
 }
