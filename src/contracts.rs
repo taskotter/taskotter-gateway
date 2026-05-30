@@ -263,15 +263,20 @@ pub struct UsageMeasurement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UsageEvent {
-    pub schema_version: String,
-    pub event_id: String,
-    pub working_group_id: String,
-    pub source: EventSource,
+    pub id: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub version: String,
     pub occurred_at: String,
-    pub subject: UsageSubject,
-    pub measurements: UsageMeasurements,
-    pub policy_decision_id: Option<String>,
-    pub idempotency_key: Option<String>,
+    pub source: EventSource,
+    pub working_group_id: String,
+    pub actor: EventActorRef,
+    pub resource: EventResourceRef,
+    pub correlation_id: String,
+    pub request_id: String,
+    pub policy_decision_id: String,
+    pub idempotency_key: String,
+    pub payload: UsagePayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -280,6 +285,13 @@ pub enum EventSource {
     ControlPlane,
     Runner,
     Gateway,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UsagePayload {
+    pub subject: UsageSubject,
+    pub measurements: UsageMeasurements,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -311,16 +323,19 @@ pub struct UsageMeasurements {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AuditEvent {
-    pub schema_version: String,
-    pub event_id: String,
+    pub id: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub version: String,
+    pub occurred_at: String,
+    pub source: EventSource,
     pub working_group_id: String,
     pub actor: EventActorRef,
-    pub action: String,
     pub resource: EventResourceRef,
-    pub outcome: AuditOutcome,
-    pub occurred_at: String,
-    pub request_id: Option<String>,
-    pub policy_decision_id: Option<String>,
+    pub correlation_id: String,
+    pub request_id: String,
+    pub policy_decision_id: String,
+    pub payload: AuditPayload,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -360,6 +375,13 @@ pub struct EventResourceRef {
     #[serde(rename = "type")]
     pub resource_type: String,
     pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuditPayload {
+    pub action: String,
+    pub outcome: AuditOutcome,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

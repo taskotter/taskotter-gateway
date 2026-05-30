@@ -51,13 +51,15 @@ fn fixtures_round_trip_and_validate_boundaries() {
     assert!(capability.supports_streaming);
     assert_eq!(health.status, HealthStatus::Ok);
     assert_eq!(frames.last().unwrap().frame_type, StreamFrameType::Final);
-    assert_eq!(usage.schema_version, "usage-event@0.1.0");
+    assert_eq!(usage.event_type, "usage.gateway_request.recorded");
+    assert_eq!(usage.version, "0.1.0");
     assert_eq!(
         usage.source,
         taskotter_gateway::contracts::EventSource::Gateway
     );
-    assert_eq!(audit.schema_version, "audit-event@0.1.0");
-    assert_eq!(audit.action, "gateway.provider.invoke");
+    assert_eq!(audit.event_type, "audit.policy_decision.denied");
+    assert_eq!(audit.version, "0.1.0");
+    assert_eq!(audit.payload.action, "gateway.provider.invoke");
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
 }
 
@@ -75,13 +77,13 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
     );
     assert_eq!(response.usage.input_tokens, 3);
     assert!(response.usage.output_tokens > 0);
-    assert_eq!(usage.schema_version, "usage-event@0.1.0");
+    assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(
-        usage.policy_decision_id.as_deref(),
-        Some("poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP")
+        usage.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
     );
-    assert_eq!(usage.measurements.input_tokens, Some(3));
-    assert_eq!(usage.measurements.estimated_cost_micros, Some(0));
+    assert_eq!(usage.payload.measurements.input_tokens, Some(3));
+    assert_eq!(usage.payload.measurements.estimated_cost_micros, Some(0));
 }
 
 #[test]
@@ -155,7 +157,7 @@ fn mcp_host_health_and_session_placeholder_are_verified() {
         .supported_hosting_modes
         .contains(&McpHostingMode::RunnerHosted));
     assert_eq!(session.lifecycle_state, "ready_placeholder");
-    assert_eq!(usage.schema_version, "usage-event@0.1.0");
-    assert_eq!(usage.measurements.tool_invocations, Some(1));
-    assert_eq!(audit.action, "gateway.mcp.session.open");
+    assert_eq!(usage.event_type, "usage.gateway_request.recorded");
+    assert_eq!(usage.payload.measurements.tool_invocations, Some(1));
+    assert_eq!(audit.payload.action, "gateway.mcp.session.open");
 }

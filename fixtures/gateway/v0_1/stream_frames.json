@@ -1,6 +1,6 @@
 [
   {
-    "request_id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 0,
     "frame_type": "start",
     "delta": null,
@@ -8,7 +8,7 @@
     "error": null
   },
   {
-    "request_id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 1,
     "frame_type": "content_delta",
     "delta": "fake:fake-deterministic-v1:summarize",
@@ -16,7 +16,7 @@
     "error": null
   },
   {
-    "request_id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 2,
     "frame_type": "usage_delta",
     "delta": null,
@@ -28,7 +28,7 @@
     "error": null
   },
   {
-    "request_id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 3,
     "frame_type": "final",
     "delta": null,
