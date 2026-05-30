@@ -1,7 +1,8 @@
 use taskotter_gateway::contracts::{
     AuditEvent, GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode, NormalizedError,
-    NormalizedErrorCode, ProviderAdapterCapability, ScopedCredentialRef, ScopedMcpSessionRequest,
-    ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
+    NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability, ScopedCredentialRef,
+    ScopedMcpSessionRequest, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
+    GATEWAY_PROTOCOL_VERSION,
 };
 use taskotter_gateway::mcp::McpRuntimeHost;
 use taskotter_gateway::provider::{FakeProviderAdapter, ProviderAdapter};
@@ -87,6 +88,21 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
 }
 
 #[test]
+fn signed_dispatch_provider_event_keeps_policy_decision_lineage_separate() {
+    let adapter = FakeProviderAdapter::new();
+    let request: ScopedModelRequest = fixture("scoped_model_signed_request");
+
+    let response = adapter.complete(&request).unwrap();
+    let usage = adapter.usage_event(&request, Some(&response), None);
+
+    assert_eq!(
+        usage.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
+    assert!(!usage.policy_decision_id.starts_with("gwi_"));
+}
+
+#[test]
 fn fake_provider_streams_ordered_frames_with_final_usage() {
     let adapter = FakeProviderAdapter::new();
     let request: ScopedModelRequest = fixture("scoped_model_request");
@@ -160,4 +176,30 @@ fn mcp_host_health_and_session_placeholder_are_verified() {
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(usage.payload.measurements.tool_invocations, Some(1));
     assert_eq!(audit.payload.action, "gateway.mcp.session.open");
+}
+
+#[test]
+fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
+    let host = McpRuntimeHost::new("mcp_host_local");
+    let mut request: ScopedMcpSessionRequest = fixture("scoped_mcp_session_request");
+    request.policy = PolicyInstruction::SignedDispatchPlaceholder {
+        instruction_ref: "gwi_01J9Z4P4BS0M9P2QJ6T8Z6W2EP".to_string(),
+        signature_ref: "sigref_01J9Z4P4BS0M9P2QJ6T8Z6W2EP".to_string(),
+        policy_decision_id: "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP".to_string(),
+        expires_at: "2026-06-01T00:00:00Z".to_string(),
+    };
+
+    let usage = host.usage_event(&request);
+    let audit = host.audit_event(&request);
+
+    assert_eq!(
+        usage.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
+    assert_eq!(
+        audit.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
+    assert!(!usage.policy_decision_id.starts_with("gwi_"));
+    assert!(!audit.policy_decision_id.starts_with("gwi_"));
 }

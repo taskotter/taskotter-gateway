@@ -148,15 +148,7 @@ impl ProviderAdapter for FakeProviderAdapter {
         response: Option<&ModelResponse>,
         _error: Option<&NormalizedError>,
     ) -> UsageEvent {
-        let policy_decision_id = match &request.policy {
-            crate::contracts::PolicyInstruction::DecisionRef { decision_ref, .. } => {
-                decision_ref.clone()
-            }
-            crate::contracts::PolicyInstruction::SignedDispatchPlaceholder {
-                instruction_ref,
-                ..
-            } => instruction_ref.clone(),
-        };
+        let policy_decision_id = request.policy.policy_decision_id().to_string();
         let usage = response.map(|response| response.usage.clone());
 
         UsageEvent {

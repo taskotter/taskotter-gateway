@@ -20,6 +20,7 @@
     "kind": "signed_dispatch_placeholder",
     "instruction_ref": "gwi_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "signature_ref": "sigref_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "policy_decision_id": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "expires_at": "2026-06-01T00:00:00Z"
   },
   "credential_ref": {

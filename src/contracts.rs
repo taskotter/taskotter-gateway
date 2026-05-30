@@ -151,19 +151,34 @@ pub enum PolicyInstruction {
     SignedDispatchPlaceholder {
         instruction_ref: String,
         signature_ref: String,
+        policy_decision_id: String,
         expires_at: String,
     },
 }
 
 impl PolicyInstruction {
+    pub fn policy_decision_id(&self) -> &str {
+        match self {
+            Self::DecisionRef { decision_ref, .. } => decision_ref,
+            Self::SignedDispatchPlaceholder {
+                policy_decision_id, ..
+            } => policy_decision_id,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), NormalizedError> {
         let valid = match self {
             Self::DecisionRef { decision_ref, .. } => decision_ref.starts_with("poldec_"),
             Self::SignedDispatchPlaceholder {
                 instruction_ref,
+                policy_decision_id,
                 signature_ref,
                 ..
-            } => instruction_ref.starts_with("gwi_") && signature_ref.starts_with("sigref_"),
+            } => {
+                instruction_ref.starts_with("gwi_")
+                    && signature_ref.starts_with("sigref_")
+                    && policy_decision_id.starts_with("poldec_")
+            }
         };
 
         if valid {

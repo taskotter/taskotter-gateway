@@ -52,15 +52,7 @@ impl McpRuntimeHost {
     }
 
     pub fn usage_event(&self, request: &ScopedMcpSessionRequest) -> UsageEvent {
-        let policy_decision_id = match &request.policy {
-            crate::contracts::PolicyInstruction::DecisionRef { decision_ref, .. } => {
-                decision_ref.clone()
-            }
-            crate::contracts::PolicyInstruction::SignedDispatchPlaceholder {
-                instruction_ref,
-                ..
-            } => instruction_ref.clone(),
-        };
+        let policy_decision_id = request.policy.policy_decision_id().to_string();
 
         UsageEvent {
             id: "evt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP".to_string(),
@@ -95,15 +87,7 @@ impl McpRuntimeHost {
     }
 
     pub fn audit_event(&self, request: &ScopedMcpSessionRequest) -> AuditEvent {
-        let policy_decision_id = match &request.policy {
-            crate::contracts::PolicyInstruction::DecisionRef { decision_ref, .. } => {
-                decision_ref.clone()
-            }
-            crate::contracts::PolicyInstruction::SignedDispatchPlaceholder {
-                instruction_ref,
-                ..
-            } => instruction_ref.clone(),
-        };
+        let policy_decision_id = request.policy.policy_decision_id().to_string();
 
         AuditEvent {
             id: "evt_01J9Z4P4BS0M9P2QJ6T8Z6W2EQ".to_string(),
