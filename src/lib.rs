@@ -14,7 +14,10 @@ pub mod tool;
 pub mod usage;
 
 pub use gateway::{Gateway, GatewayError, GatewayOutcome};
-pub use policy::{PolicyCheck, PolicyDecision, PolicyEffect, PolicyEngine};
+pub use policy::{PolicyCheck, PolicyConstraint, PolicyDecision, PolicyEffect, PolicyEngine};
 pub use protocol::{GatewayRequest, ProtocolError, ProtocolVersion};
 pub use tool::{CapabilitySurface, ToolCall, ToolCapability};
-pub use usage::{UsageEvent, UsageMeter};
+pub use usage::{
+    PrincipalKind, UsageEvent, UsageLifecycleStage, UsageMeter, UsagePrincipal, UsageSubject,
+    UsageSubjectKind, UsageUnit, UsageUnitKind,
+};

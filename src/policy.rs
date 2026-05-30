@@ -18,7 +18,7 @@ pub struct PolicyCheck {
     pub estimated_usage_units: u64,
 }
 
-/// Allow or deny result from the policy engine.
+/// Allow or deny result used by policy decisions and constraints.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyEffect {
@@ -28,35 +28,67 @@ pub enum PolicyEffect {
     Deny,
 }
 
-/// Auditable policy decision returned by the control plane.
+/// One named policy constraint contributing to the final decision.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolicyConstraint {
+    /// Stable constraint name, such as `usage_limit` or `integration_access`.
+    pub name: String,
+    /// Constraint effect.
+    pub effect: PolicyEffect,
+    /// Human-readable reason safe for audit records.
+    pub reason: String,
+}
+
+impl PolicyConstraint {
+    /// Builds an allow constraint.
+    #[must_use]
+    pub fn allow(name: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            effect: PolicyEffect::Allow,
+            reason: reason.into(),
+        }
+    }
+
+    /// Builds a deny constraint.
+    #[must_use]
+    pub fn deny(name: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            effect: PolicyEffect::Deny,
+            reason: reason.into(),
+        }
+    }
+}
+
+/// Canonical policy decision returned by the control plane.
+///
+/// This shape intentionally mirrors
+/// `https://schemas.taskotter.dev/v1/policy-decision.schema.json`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyDecision {
     /// Decision effect.
     pub effect: PolicyEffect,
-    /// Stable policy decision identifier for audit correlation.
-    pub decision_id: String,
-    /// Human-readable denial or audit reason.
-    pub reason: String,
+    /// Individual constraints that were evaluated with AND semantics.
+    pub constraints: Vec<PolicyConstraint>,
 }
 
 impl PolicyDecision {
     /// Builds an allow decision.
     #[must_use]
-    pub fn allow(decision_id: impl Into<String>) -> Self {
+    pub fn allow() -> Self {
         Self {
             effect: PolicyEffect::Allow,
-            decision_id: decision_id.into(),
-            reason: "allowed".to_owned(),
+            constraints: vec![PolicyConstraint::allow("gateway_preflight", "allowed")],
         }
     }
 
     /// Builds a deny decision.
     #[must_use]
-    pub fn deny(decision_id: impl Into<String>, reason: impl Into<String>) -> Self {
+    pub fn deny(name: impl Into<String>, reason: impl Into<String>) -> Self {
         Self {
             effect: PolicyEffect::Deny,
-            decision_id: decision_id.into(),
-            reason: reason.into(),
+            constraints: vec![PolicyConstraint::deny(name, reason)],
         }
     }
 

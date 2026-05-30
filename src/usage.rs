@@ -2,34 +2,103 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Principal responsible for usage.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UsagePrincipal {
+    /// Principal kind.
+    pub kind: PrincipalKind,
+    /// Principal identifier.
+    pub id: String,
+    /// Working Group boundary for the principal.
+    pub working_group_id: String,
+}
+
+/// Principal kind.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrincipalKind {
+    /// A human user.
+    User,
+    /// An agent principal.
+    Agent,
+    /// A service principal.
+    Service,
+}
+
+/// Usage subject.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UsageSubject {
+    /// Subject kind.
+    pub kind: UsageSubjectKind,
+}
+
+/// Usage subject kind.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageSubjectKind {
+    /// Model call usage.
+    ModelCall,
+    /// Tool call usage.
+    ToolCall,
+    /// Automation run usage.
+    AutomationRun,
+    /// Runner job usage.
+    RunnerJob,
+    /// Gateway request usage.
+    GatewayRequest,
+}
+
+/// Typed usage unit.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UsageUnit {
+    /// Unit kind.
+    pub kind: UsageUnitKind,
+    /// Non-negative quantity.
+    pub quantity: u64,
+}
+
+/// Usage unit kind.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageUnitKind {
+    /// Input tokens.
+    InputToken,
+    /// Output tokens.
+    OutputToken,
+    /// Tool invocation count.
+    ToolInvocation,
+    /// Runtime milliseconds.
+    RuntimeMillisecond,
+    /// Stored bytes.
+    StoredByte,
+    /// Estimated cost in micro-USD.
+    EstimatedCostMicrousd,
+}
+
 /// Usage event emitted before or after a gateway operation.
+///
+/// This shape intentionally mirrors
+/// `https://schemas.taskotter.dev/v1/usage-event.schema.json`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UsageEvent {
     /// Stable event identifier supplied by the gateway.
-    pub event_id: String,
-    /// Request identifier this event belongs to.
-    pub request_id: String,
+    pub id: String,
     /// Working Group or tenant boundary.
     pub working_group_id: String,
-    /// Actor responsible for the usage.
-    pub actor_id: String,
-    /// Principal that performed the usage.
-    pub principal_id: String,
-    /// Capability identifier being metered.
-    pub capability_id: String,
-    /// Policy decision identifier that authorized or denied the action.
-    pub policy_decision_id: String,
-    /// Metered units. MVP treats this as a generic counter until specialized
-    /// token, duration, request, and cost ledgers are connected.
-    pub units: u64,
-    /// Usage lifecycle stage.
-    pub stage: UsageStage,
+    /// Principal responsible for the usage.
+    pub principal: UsagePrincipal,
+    /// Metered subject.
+    pub subject: UsageSubject,
+    /// Typed metered units.
+    pub units: Vec<UsageUnit>,
+    /// Retry-safe idempotency key.
+    pub idempotency_key: String,
 }
 
-/// Usage lifecycle stage.
+/// Gateway-local lifecycle stage used to derive usage idempotency keys.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum UsageStage {
+pub enum UsageLifecycleStage {
     /// A reservation or preflight estimate before execution.
     Reserved,
     /// Final usage after execution succeeds.
