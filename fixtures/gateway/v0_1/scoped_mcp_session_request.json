@@ -1,0 +1,25 @@
+{
+  "protocol_version": "gateway.v0.1",
+  "session_id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "actor": {
+    "actor_type": "agent",
+    "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+  },
+  "mcp_server_ref": "mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "hosting_mode": "gateway_hosted",
+  "allowed_tool_refs": [
+    "tool_fixture_read"
+  ],
+  "policy": {
+    "kind": "decision_ref",
+    "decision_ref": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "expires_at": "2026-06-01T00:00:00Z"
+  },
+  "credential_ref": {
+    "kind": "external_mcp_credential_ref",
+    "reference": "secret_ref_mcp_fixture",
+    "scope": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP/mcp/mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+  }
+}
