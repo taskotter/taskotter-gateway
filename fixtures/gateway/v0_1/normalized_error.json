@@ -1,0 +1,7 @@
+{
+  "code": "rate_limited",
+  "message": "The fake provider simulated a rate limit.",
+  "retryable": true,
+  "upstream_status": 429,
+  "provider_error_class": "fake_rate_limit"
+}

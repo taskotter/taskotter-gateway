@@ -1,0 +1,42 @@
+[
+  {
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "sequence": 0,
+    "frame_type": "start",
+    "delta": null,
+    "usage": null,
+    "error": null
+  },
+  {
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "sequence": 1,
+    "frame_type": "content_delta",
+    "delta": "fake:fake-deterministic-v1:summarize",
+    "usage": null,
+    "error": null
+  },
+  {
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "sequence": 2,
+    "frame_type": "usage_delta",
+    "delta": null,
+    "usage": {
+      "input_tokens": 3,
+      "output_tokens": 3,
+      "total_tokens": 6
+    },
+    "error": null
+  },
+  {
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "sequence": 3,
+    "frame_type": "final",
+    "delta": null,
+    "usage": {
+      "input_tokens": 3,
+      "output_tokens": 3,
+      "total_tokens": 6
+    },
+    "error": null
+  }
+]

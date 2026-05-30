@@ -1,0 +1,29 @@
+{
+  "protocol_version": "gateway.v0.1",
+  "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "actor": {
+    "actor_type": "agent",
+    "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+  },
+  "provider": "fake-hosted",
+  "model": "fake-deterministic-v1",
+  "messages": [
+    {
+      "role": "user",
+      "content": "summarize fixture contract"
+    }
+  ],
+  "stream": true,
+  "policy": {
+    "kind": "decision_ref",
+    "decision_ref": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "expires_at": "2026-06-01T00:00:00Z"
+  },
+  "credential_ref": {
+    "kind": "secret_ref",
+    "reference": "secret_ref_provider_fake_fixture",
+    "scope": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP/provider/fake-hosted/model/fake-deterministic-v1"
+  }
+}
