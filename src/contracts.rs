@@ -330,22 +330,36 @@ pub enum FinishReason {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RoutingMetadata {
-    pub provider: String,
-    pub model: String,
+    pub selected_provider: String,
+    pub selected_model: String,
+    pub route_type: RouteType,
     pub reason_code: RoutingReasonCode,
-    pub attempt: u32,
+    pub fallback_attempt: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback_from_provider: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum RouteType {
+    Primary,
+    Fallback,
+    Denied,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RoutingReasonCode {
-    PrimarySelected,
-    FallbackAfterRetryableError,
-    FallbackAfterTimeout,
+    ExplicitSelection,
+    PolicyDefault,
+    CapabilityMatch,
+    CostLimit,
+    LatencyPreference,
+    ResidencyConstraint,
+    RunnerLocalRequired,
+    FallbackAfterError,
+    FallbackAfterCapacity,
     PolicyDenied,
-    CapabilityUnsupported,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -423,6 +437,8 @@ pub enum EventSource {
 pub struct UsagePayload {
     pub subject: UsageSubject,
     pub measurements: UsageMeasurements,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -517,6 +533,8 @@ pub struct EventResourceRef {
 pub struct AuditPayload {
     pub action: String,
     pub outcome: AuditOutcome,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_capability: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

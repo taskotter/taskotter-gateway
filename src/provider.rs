@@ -1,6 +1,6 @@
 use crate::contracts::{
     EventActorRef, EventResourceRef, EventSource, FinishReason, ModelCapability, ModelResponse,
-    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, RoutingMetadata,
+    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, RouteType, RoutingMetadata,
     RoutingReasonCode, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
     UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
     GATEWAY_PROTOCOL_VERSION,
@@ -48,11 +48,16 @@ impl ProviderAdapter for FakeProviderAdapter {
             supports_tool_calls: false,
             credential_ref_kinds: vec![crate::contracts::CredentialRefKind::SecretRef],
             routing_reason_codes: vec![
-                RoutingReasonCode::PrimarySelected,
-                RoutingReasonCode::FallbackAfterRetryableError,
-                RoutingReasonCode::FallbackAfterTimeout,
+                RoutingReasonCode::ExplicitSelection,
+                RoutingReasonCode::PolicyDefault,
+                RoutingReasonCode::CapabilityMatch,
+                RoutingReasonCode::CostLimit,
+                RoutingReasonCode::LatencyPreference,
+                RoutingReasonCode::ResidencyConstraint,
+                RoutingReasonCode::RunnerLocalRequired,
+                RoutingReasonCode::FallbackAfterError,
+                RoutingReasonCode::FallbackAfterCapacity,
                 RoutingReasonCode::PolicyDenied,
-                RoutingReasonCode::CapabilityUnsupported,
             ],
             extension_points: vec![
                 crate::contracts::ContractExtensionPoint::ProviderMetadata,
@@ -86,7 +91,7 @@ impl ProviderAdapter for FakeProviderAdapter {
             content,
             finish_reason: FinishReason::Stop,
             usage,
-            routing: routing_metadata(request, RoutingReasonCode::PrimarySelected),
+            routing: routing_metadata(request, RoutingReasonCode::ExplicitSelection),
         })
     }
 
@@ -109,7 +114,7 @@ impl ProviderAdapter for FakeProviderAdapter {
                     error: None,
                     routing: Some(routing_metadata(
                         request,
-                        RoutingReasonCode::PrimarySelected,
+                        RoutingReasonCode::ExplicitSelection,
                     )),
                 },
                 StreamFrame {
@@ -123,7 +128,7 @@ impl ProviderAdapter for FakeProviderAdapter {
                     error: Some(rate_limit_error()),
                     routing: Some(routing_metadata(
                         request,
-                        RoutingReasonCode::FallbackAfterRetryableError,
+                        RoutingReasonCode::FallbackAfterError,
                     )),
                 },
             ]);
@@ -143,7 +148,7 @@ impl ProviderAdapter for FakeProviderAdapter {
             error: None,
             routing: Some(routing_metadata(
                 request,
-                RoutingReasonCode::PrimarySelected,
+                RoutingReasonCode::ExplicitSelection,
             )),
         }];
 
@@ -183,7 +188,7 @@ impl ProviderAdapter for FakeProviderAdapter {
             error: None,
             routing: Some(routing_metadata(
                 request,
-                RoutingReasonCode::PrimarySelected,
+                RoutingReasonCode::ExplicitSelection,
             )),
         });
 
@@ -198,6 +203,9 @@ impl ProviderAdapter for FakeProviderAdapter {
     ) -> UsageEvent {
         let policy_decision_id = request.policy.policy_decision_id().to_string();
         let usage = response.map(|response| response.usage.clone());
+        let routing = response
+            .map(|response| response.routing.clone())
+            .or_else(|| request.routing.clone());
 
         UsageEvent {
             id: "evt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP".to_string(),
@@ -229,6 +237,7 @@ impl ProviderAdapter for FakeProviderAdapter {
                     metering_unit: None,
                     runtime_capability: None,
                 },
+                routing,
             },
         }
     }
@@ -262,10 +271,11 @@ fn routing_metadata(
     reason_code: RoutingReasonCode,
 ) -> RoutingMetadata {
     request.routing.clone().unwrap_or_else(|| RoutingMetadata {
-        provider: request.provider.clone(),
-        model: request.model.clone(),
+        selected_provider: request.provider.clone(),
+        selected_model: request.model.clone(),
+        route_type: RouteType::Primary,
         reason_code,
-        attempt: 1,
+        fallback_attempt: 0,
         fallback_from_provider: None,
     })
 }

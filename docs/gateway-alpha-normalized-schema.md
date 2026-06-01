@@ -25,24 +25,42 @@ The compatibility fixture is
   `frame_type`, `delta`, `usage`, `error`, optional `routing`.
 - Usage event: root event envelope plus `payload.measurements` for
   `duration_ms`, token counts, `tool_invocations`, `estimated_cost_micros`,
-  optional `metering_unit`, and optional `runtime_capability`.
+  optional `metering_unit`, optional `runtime_capability`, and optional
+  `payload.routing`.
 - Audit event: root event envelope plus `payload.action`, `payload.outcome`,
-  optional `runtime_capability`, optional `feature_flag`, and optional
-  `approval_ref`.
+  optional `payload.routing`, optional `runtime_capability`, optional
+  `feature_flag`, and optional `approval_ref`.
 
 ## Routing Compatibility
 
 `RoutingMetadata` is the alpha handoff point for routing, fallback, backend
-relay, and observability work. It carries `provider`, `model`, `reason_code`,
-`attempt`, and optional `fallback_from_provider`.
+relay, and observability work. It carries `selected_provider`,
+`selected_model`, `route_type`, `reason_code`, `fallback_attempt`, and optional
+`fallback_from_provider`.
+
+The current route types are:
+
+- `primary`
+- `fallback`
+- `denied`
 
 The current reason codes are:
 
-- `primary_selected`
-- `fallback_after_retryable_error`
-- `fallback_after_timeout`
+- `explicit_selection`
+- `policy_default`
+- `capability_match`
+- `cost_limit`
+- `latency_preference`
+- `residency_constraint`
+- `runner_local_required`
+- `fallback_after_error`
+- `fallback_after_capacity`
 - `policy_denied`
-- `capability_unsupported`
+
+Usage and audit events carry the same optional `payload.routing` shape as
+response and stream contracts so downstream observability can reconstruct the
+selected provider/model, route type, canonical reason code, fallback attempt,
+and fallback-from provider without parsing adapter-specific logs.
 
 ## Extension Points
 

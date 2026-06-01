@@ -15,11 +15,16 @@
     "secret_ref"
   ],
   "routing_reason_codes": [
-    "primary_selected",
-    "fallback_after_retryable_error",
-    "fallback_after_timeout",
-    "policy_denied",
-    "capability_unsupported"
+    "explicit_selection",
+    "policy_default",
+    "capability_match",
+    "cost_limit",
+    "latency_preference",
+    "residency_constraint",
+    "runner_local_required",
+    "fallback_after_error",
+    "fallback_after_capacity",
+    "policy_denied"
   ],
   "extension_points": [
     "provider_metadata",

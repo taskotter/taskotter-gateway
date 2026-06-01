@@ -9,10 +9,11 @@
     "usage": null,
     "error": null,
     "routing": {
-      "provider": "fake-hosted",
-      "model": "fake-deterministic-v1",
-      "reason_code": "primary_selected",
-      "attempt": 1
+      "selected_provider": "fake-hosted",
+      "selected_model": "fake-deterministic-v1",
+      "route_type": "primary",
+      "reason_code": "explicit_selection",
+      "fallback_attempt": 0
     }
   },
   {
@@ -53,10 +54,11 @@
     },
     "error": null,
     "routing": {
-      "provider": "fake-hosted",
-      "model": "fake-deterministic-v1",
-      "reason_code": "primary_selected",
-      "attempt": 1
+      "selected_provider": "fake-hosted",
+      "selected_model": "fake-deterministic-v1",
+      "route_type": "primary",
+      "reason_code": "explicit_selection",
+      "fallback_attempt": 0
     }
   }
 ]
