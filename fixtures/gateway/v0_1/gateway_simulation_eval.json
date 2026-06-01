@@ -1,0 +1,1131 @@
+{
+  "fixture_version": "gateway_simulation_eval.v1",
+  "seed": "taskotter-gateway-sim-seed-0001",
+  "provider_cases": [
+    {
+      "id": "provider_streaming_success_primary",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_stream_success",
+        "correlation_id": "corr_sim_stream_success",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate streaming success"
+          }
+        ],
+        "stream": true,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_stream_success",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "success",
+        "streaming": true,
+        "content": "fake:fake-deterministic-v1:simulate streaming success"
+      },
+      "usage_event": {
+        "id": "evt_sim_stream_success_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_stream_success",
+        "request_id": "req_sim_stream_success",
+        "policy_decision_id": "poldec_sim_stream_success",
+        "idempotency_key": "usage_req_sim_stream_success",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_stream_success"
+          },
+          "measurements": {
+            "duration_ms": 7,
+            "input_tokens": 3,
+            "output_tokens": 3,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_stream_success_audit",
+        "type": "audit.policy_decision.allowed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_stream_success",
+        "request_id": "req_sim_stream_success",
+        "policy_decision_id": "poldec_sim_stream_success",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "succeeded"
+        }
+      },
+      "stream_frames": [
+        {
+          "request_id": "req_sim_stream_success",
+          "sequence": 0,
+          "frame_type": "start",
+          "delta": null,
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_stream_success",
+          "sequence": 1,
+          "frame_type": "content_delta",
+          "delta": "fake:fake-deterministic-v1:simulate",
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_stream_success",
+          "sequence": 2,
+          "frame_type": "usage_delta",
+          "delta": null,
+          "usage": {
+            "input_tokens": 3,
+            "output_tokens": 3,
+            "total_tokens": 6
+          },
+          "error": null
+        },
+        {
+          "request_id": "req_sim_stream_success",
+          "sequence": 3,
+          "frame_type": "final",
+          "delta": null,
+          "usage": {
+            "input_tokens": 3,
+            "output_tokens": 3,
+            "total_tokens": 6
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "provider_non_streaming_success_fallback",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_non_stream_success",
+        "correlation_id": "corr_sim_non_stream_success",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted-primary",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate fallback success"
+          }
+        ],
+        "stream": false,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_non_stream_success",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted-primary/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted-primary",
+        "fallback_provider": "fake-hosted-fallback",
+        "selected_provider": "fake-hosted-fallback",
+        "fallback_used": true,
+        "reason": "primary_rate_limited"
+      },
+      "outcome": {
+        "kind": "success",
+        "streaming": false,
+        "content": "fake:fake-deterministic-v1:simulate fallback success"
+      },
+      "usage_event": {
+        "id": "evt_sim_non_stream_success_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted-fallback"
+        },
+        "correlation_id": "corr_sim_non_stream_success",
+        "request_id": "req_sim_non_stream_success",
+        "policy_decision_id": "poldec_sim_non_stream_success",
+        "idempotency_key": "usage_req_sim_non_stream_success",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_non_stream_success"
+          },
+          "measurements": {
+            "duration_ms": 5,
+            "input_tokens": 3,
+            "output_tokens": 3,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_non_stream_success_audit",
+        "type": "audit.policy_decision.allowed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted-fallback"
+        },
+        "correlation_id": "corr_sim_non_stream_success",
+        "request_id": "req_sim_non_stream_success",
+        "policy_decision_id": "poldec_sim_non_stream_success",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "succeeded"
+        }
+      }
+    },
+    {
+      "id": "provider_rate_limit_error",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_rate_limit",
+        "correlation_id": "corr_sim_rate_limit",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "error:rate_limit"
+          }
+        ],
+        "stream": true,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_rate_limit",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "provider_error",
+        "error": {
+          "code": "rate_limited",
+          "message": "The fake provider simulated a rate limit.",
+          "retryable": true,
+          "upstream_status": 429,
+          "provider_error_class": "fake_rate_limit"
+        }
+      },
+      "usage_event": {
+        "id": "evt_sim_rate_limit_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_rate_limit",
+        "request_id": "req_sim_rate_limit",
+        "policy_decision_id": "poldec_sim_rate_limit",
+        "idempotency_key": "usage_req_sim_rate_limit",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_rate_limit"
+          },
+          "measurements": {
+            "duration_ms": 3,
+            "input_tokens": 1,
+            "output_tokens": 0,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_rate_limit_audit",
+        "type": "audit.provider.failed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_rate_limit",
+        "request_id": "req_sim_rate_limit",
+        "policy_decision_id": "poldec_sim_rate_limit",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "failed"
+        }
+      },
+      "stream_frames": [
+        {
+          "request_id": "req_sim_rate_limit",
+          "sequence": 0,
+          "frame_type": "start",
+          "delta": null,
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_rate_limit",
+          "sequence": 1,
+          "frame_type": "error",
+          "delta": null,
+          "usage": null,
+          "error": {
+            "code": "rate_limited",
+            "message": "The fake provider simulated a rate limit.",
+            "retryable": true,
+            "upstream_status": 429,
+            "provider_error_class": "fake_rate_limit"
+          }
+        }
+      ]
+    },
+    {
+      "id": "provider_malformed_stream_chunk",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_malformed_chunk",
+        "correlation_id": "corr_sim_malformed_chunk",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate malformed chunk"
+          }
+        ],
+        "stream": true,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_malformed_chunk",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "malformed_chunk",
+        "sequence": 1
+      },
+      "usage_event": {
+        "id": "evt_sim_malformed_chunk_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_malformed_chunk",
+        "request_id": "req_sim_malformed_chunk",
+        "policy_decision_id": "poldec_sim_malformed_chunk",
+        "idempotency_key": "usage_req_sim_malformed_chunk",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_malformed_chunk"
+          },
+          "measurements": {
+            "duration_ms": 2,
+            "input_tokens": 3,
+            "output_tokens": 0,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_malformed_chunk_audit",
+        "type": "audit.provider.failed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_malformed_chunk",
+        "request_id": "req_sim_malformed_chunk",
+        "policy_decision_id": "poldec_sim_malformed_chunk",
+        "payload": {
+          "action": "gateway.provider.stream",
+          "outcome": "failed"
+        }
+      },
+      "stream_frames": [
+        {
+          "request_id": "req_sim_malformed_chunk",
+          "sequence": 0,
+          "frame_type": "start",
+          "delta": null,
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_malformed_chunk",
+          "sequence": 1,
+          "frame_type": "error",
+          "delta": null,
+          "usage": null,
+          "error": {
+            "code": "malformed_upstream_response",
+            "message": "The fake provider emitted a malformed stream chunk.",
+            "retryable": true,
+            "upstream_status": null,
+            "provider_error_class": "fake_malformed_chunk"
+          }
+        }
+      ]
+    },
+    {
+      "id": "provider_partial_stream",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_partial_stream",
+        "correlation_id": "corr_sim_partial_stream",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate partial stream"
+          }
+        ],
+        "stream": true,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_partial_stream",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "partial_stream",
+        "delivered_frames": 2
+      },
+      "usage_event": {
+        "id": "evt_sim_partial_stream_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_partial_stream",
+        "request_id": "req_sim_partial_stream",
+        "policy_decision_id": "poldec_sim_partial_stream",
+        "idempotency_key": "usage_req_sim_partial_stream",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_partial_stream"
+          },
+          "measurements": {
+            "duration_ms": 4,
+            "input_tokens": 3,
+            "output_tokens": 1,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_partial_stream_audit",
+        "type": "audit.provider.failed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_partial_stream",
+        "request_id": "req_sim_partial_stream",
+        "policy_decision_id": "poldec_sim_partial_stream",
+        "payload": {
+          "action": "gateway.provider.stream",
+          "outcome": "failed"
+        }
+      },
+      "stream_frames": [
+        {
+          "request_id": "req_sim_partial_stream",
+          "sequence": 0,
+          "frame_type": "start",
+          "delta": null,
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_partial_stream",
+          "sequence": 1,
+          "frame_type": "content_delta",
+          "delta": "partial",
+          "usage": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "provider_timeout",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_timeout",
+        "correlation_id": "corr_sim_timeout",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate timeout"
+          }
+        ],
+        "stream": false,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_timeout",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "timeout",
+        "timeout_ms": 0
+      },
+      "usage_event": {
+        "id": "evt_sim_timeout_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_timeout",
+        "request_id": "req_sim_timeout",
+        "policy_decision_id": "poldec_sim_timeout",
+        "idempotency_key": "usage_req_sim_timeout",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_timeout"
+          },
+          "measurements": {
+            "duration_ms": 0,
+            "input_tokens": 2,
+            "output_tokens": 0,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_timeout_audit",
+        "type": "audit.provider.failed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_timeout",
+        "request_id": "req_sim_timeout",
+        "policy_decision_id": "poldec_sim_timeout",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "failed"
+        }
+      }
+    },
+    {
+      "id": "provider_cancellation",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_cancel",
+        "correlation_id": "corr_sim_cancel",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate cancellation"
+          }
+        ],
+        "stream": true,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_cancel",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "cancellation",
+        "cancelled_after_frames": 2
+      },
+      "usage_event": {
+        "id": "evt_sim_cancel_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_cancel",
+        "request_id": "req_sim_cancel",
+        "policy_decision_id": "poldec_sim_cancel",
+        "idempotency_key": "usage_req_sim_cancel",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_cancel"
+          },
+          "measurements": {
+            "duration_ms": 3,
+            "input_tokens": 2,
+            "output_tokens": 1,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_cancel_audit",
+        "type": "audit.provider.cancelled",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_cancel",
+        "request_id": "req_sim_cancel",
+        "policy_decision_id": "poldec_sim_cancel",
+        "payload": {
+          "action": "gateway.provider.stream",
+          "outcome": "failed"
+        }
+      },
+      "stream_frames": [
+        {
+          "request_id": "req_sim_cancel",
+          "sequence": 0,
+          "frame_type": "start",
+          "delta": null,
+          "usage": null,
+          "error": null
+        },
+        {
+          "request_id": "req_sim_cancel",
+          "sequence": 1,
+          "frame_type": "content_delta",
+          "delta": "cancelled",
+          "usage": null,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "provider_policy_denial",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_policy_denial",
+        "correlation_id": "corr_sim_policy_denial",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "disabled_fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate policy denial"
+          }
+        ],
+        "stream": false,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_policy_denial",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/disabled_fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "disabled_fake-hosted",
+        "selected_provider": "disabled_fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "policy_denial",
+        "decision_id": "poldec_sim_policy_denial",
+        "reason": "provider disabled by gateway policy"
+      },
+      "usage_event": {
+        "id": "evt_sim_policy_denial_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "disabled_fake-hosted"
+        },
+        "correlation_id": "corr_sim_policy_denial",
+        "request_id": "req_sim_policy_denial",
+        "policy_decision_id": "poldec_sim_policy_denial",
+        "idempotency_key": "usage_req_sim_policy_denial",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_policy_denial"
+          },
+          "measurements": {
+            "duration_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_policy_denial_audit",
+        "type": "audit.policy_decision.denied",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "disabled_fake-hosted"
+        },
+        "correlation_id": "corr_sim_policy_denial",
+        "request_id": "req_sim_policy_denial",
+        "policy_decision_id": "poldec_sim_policy_denial",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "denied"
+        }
+      }
+    },
+    {
+      "id": "provider_quota_denial",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_quota_denial",
+        "correlation_id": "corr_sim_quota_denial",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate quota denial"
+          }
+        ],
+        "stream": false,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_quota_denial",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "route": {
+        "primary_provider": "fake-hosted",
+        "selected_provider": "fake-hosted",
+        "fallback_used": false
+      },
+      "outcome": {
+        "kind": "quota_denial",
+        "decision_id": "poldec_sim_quota_denial",
+        "max_cost_micro_usd": 0
+      },
+      "usage_event": {
+        "id": "evt_sim_quota_denial_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_quota_denial",
+        "request_id": "req_sim_quota_denial",
+        "policy_decision_id": "poldec_sim_quota_denial",
+        "idempotency_key": "usage_req_sim_quota_denial",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_quota_denial"
+          },
+          "measurements": {
+            "duration_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_invocations": 0,
+            "estimated_cost_micros": 0
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_quota_denial_audit",
+        "type": "audit.policy_decision.denied",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "provider",
+          "id": "fake-hosted"
+        },
+        "correlation_id": "corr_sim_quota_denial",
+        "request_id": "req_sim_quota_denial",
+        "policy_decision_id": "poldec_sim_quota_denial",
+        "payload": {
+          "action": "gateway.provider.invoke",
+          "outcome": "denied"
+        }
+      }
+    }
+  ],
+  "mcp_cases": [
+    {
+      "id": "mcp_gateway_hosted_lifecycle_tool_call",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "session_id": "req_sim_mcp_session",
+        "correlation_id": "corr_sim_mcp_session",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "mcp_server_ref": "mcp_sim_server",
+        "hosting_mode": "gateway_hosted",
+        "allowed_tool_refs": [
+          "tool_fixture_read"
+        ],
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_mcp_session",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "external_mcp_credential_ref",
+          "reference": "secret_ref_mcp_fixture",
+          "scope": "wg_sim/mcp/mcp_sim_server"
+        }
+      },
+      "lifecycle_events": [
+        {
+          "sequence": 0,
+          "phase": "start",
+          "state": "starting"
+        },
+        {
+          "sequence": 1,
+          "phase": "health",
+          "state": "ok"
+        },
+        {
+          "sequence": 2,
+          "phase": "tool_call",
+          "state": "completed",
+          "tool_ref": "tool_fixture_read"
+        },
+        {
+          "sequence": 3,
+          "phase": "stop",
+          "state": "stopped"
+        }
+      ],
+      "usage_event": {
+        "id": "evt_sim_mcp_usage",
+        "type": "usage.gateway_request.recorded",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:01.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "mcp_server",
+          "id": "mcp_sim_server"
+        },
+        "correlation_id": "corr_sim_mcp_session",
+        "request_id": "req_sim_mcp_session",
+        "policy_decision_id": "poldec_sim_mcp_session",
+        "idempotency_key": "usage_req_sim_mcp_session",
+        "payload": {
+          "subject": {
+            "type": "gateway_request",
+            "id": "req_sim_mcp_session"
+          },
+          "measurements": {
+            "duration_ms": 11,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_invocations": 1,
+            "estimated_cost_micros": 0,
+            "metering_unit": "hosted_mcp_runtime_ms",
+            "runtime_capability": "gateway.hosted_mcp_billing"
+          }
+        }
+      },
+      "audit_event": {
+        "id": "evt_sim_mcp_audit",
+        "type": "audit.policy_decision.allowed",
+        "version": "0.1.0",
+        "occurred_at": "2026-01-01T00:00:02.000Z",
+        "source": "gateway",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "type": "agent",
+          "id": "agt_sim"
+        },
+        "resource": {
+          "type": "mcp_server",
+          "id": "mcp_sim_server"
+        },
+        "correlation_id": "corr_sim_mcp_session",
+        "request_id": "req_sim_mcp_session",
+        "policy_decision_id": "poldec_sim_mcp_session",
+        "payload": {
+          "action": "gateway.mcp.tool.call",
+          "outcome": "succeeded",
+          "runtime_capability": "gateway.hosted_mcp_billing",
+          "feature_flag": "gateway.hosted_mcp_billing.enabled",
+          "approval_ref": "policy_decision_ref"
+        }
+      }
+    }
+  ]
+}
