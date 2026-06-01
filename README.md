@@ -24,6 +24,7 @@ The server listens on `127.0.0.1:8080` by default. Override with `TASKOTTER_GATE
 - `GET /healthz` returns service health.
 - Versioned gateway protocol structs and JSON fixtures validate the gateway/control-plane contract.
 - The deterministic fake provider adapter and MCP runtime host placeholders support local compatibility tests without provider credentials or paid resources.
+- MCP tool policy fixtures cover read-only, sensitive-read, mutating, and execution risk classes before any tool execution is attempted.
 
 Policy decisions use the control-plane canonical shape:
 `allowed`, `decision_id`, optional `reason`, optional `max_tokens`, and optional
@@ -54,6 +55,13 @@ live provider keys, hosted MCP runtime, private runner access, or paid resources
 ## Compatibility Checks
 
 `contract-compatibility.json` declares the control-plane and gateway protocol versions this repository consumes. CI calls the repo-local compatibility tests `cargo test contract_compatibility_matrix_declares_supported_versions` and `cargo test rejects_unsupported_gateway_protocol_fixture` so unsupported gateway protocol fixtures fail before merge without requiring provider credentials or paid resources.
+
+The `fixtures/gateway/v0_1/mcp_tool_policy_cases.json` fixture is part of the
+gateway/control-plane compatibility surface. It records owner, Working Group,
+actor, skill, agent, runner, credential-reference, network reach, side-effect,
+and risk metadata used by pre-execution MCP tool policy checks. Denied and
+approval-required outcomes emit only normalized policy/audit/usage shapes and
+must not expose scoped credential references or denied runner bindings.
 
 ## Known Limitations
 

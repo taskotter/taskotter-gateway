@@ -19,7 +19,11 @@ use taskotter_gateway::{
         RoutingReasonCode,
     },
     mcp::McpRuntimeHost,
-    mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
+    mcp::{
+        evaluate_tool_call_policy, resolve_endpoint, McpEndpoint, McpHostMode,
+        McpToolCredentialRequirement, McpToolNetworkReach, McpToolPolicyEffect,
+        McpToolPolicyFixtureCase, McpToolRiskLevel, McpToolSideEffectProfile,
+    },
     provider::{FakeProviderAdapter, ProviderAdapter},
     simulator::GatewaySimulationFixture,
 };
@@ -882,6 +886,139 @@ fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
 }
 
 #[test]
+fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
+    let cases: Vec<McpToolPolicyFixtureCase> = fixture("mcp_tool_policy_cases");
+
+    assert_eq!(cases.len(), 14);
+    assert!(cases
+        .iter()
+        .any(|case| case.request.tool.risk_level == McpToolRiskLevel::ReadOnly));
+    assert!(cases.iter().any(|case| {
+        case.request.tool.risk_level == McpToolRiskLevel::SensitiveRead
+            && case.request.credential_ref.is_some()
+    }));
+    assert!(cases.iter().any(|case| {
+        case.request.tool.risk_level == McpToolRiskLevel::Mutating
+            && case.expected_effect == McpToolPolicyEffect::ApprovalRequired
+    }));
+    assert!(cases.iter().any(|case| {
+        case.request.tool.risk_level == McpToolRiskLevel::Execution
+            && case.expected_effect == McpToolPolicyEffect::Denied
+    }));
+    assert!(cases.iter().any(|case| {
+        case.id == "sensitive_read_denies_optional_credential_scope_mismatch"
+            && case.expected_reason_code.as_deref() == Some("credential_scope_mismatch")
+    }));
+    assert!(cases.iter().any(|case| {
+        case.id == "sensitive_read_denies_optional_credential_reference_kind"
+            && case.expected_reason_code.as_deref() == Some("credential_reference_kind_not_allowed")
+    }));
+    for expected_reason in [
+        "working_group_scope_mismatch",
+        "actor_type_not_allowed",
+        "actor_id_not_allowed",
+        "required_skill_missing",
+        "agent_binding_not_allowed",
+        "runner_binding_not_allowed",
+        "credential_reference_required",
+        "credential_scope_mismatch",
+        "credential_reference_kind_not_allowed",
+    ] {
+        assert!(
+            cases.iter().any(|case| {
+                case.expected_effect == McpToolPolicyEffect::Denied
+                    && case.expected_reason_code.as_deref() == Some(expected_reason)
+            }),
+            "missing MCP tool policy fixture for {expected_reason}"
+        );
+    }
+
+    for case in cases {
+        case.request.tool.validate_risk_metadata().unwrap();
+
+        let outcome = evaluate_tool_call_policy(&case.request);
+
+        assert_eq!(outcome.effect, case.expected_effect, "case {}", case.id);
+        assert_eq!(
+            outcome.reason_code, case.expected_reason_code,
+            "case {}",
+            case.id
+        );
+        assert_eq!(
+            outcome.policy_decision_id,
+            case.request.policy.policy_decision_id(),
+            "case {}",
+            case.id
+        );
+        assert_eq!(
+            outcome.usage_event.payload.measurements.tool_invocations,
+            Some(0),
+            "case {} must remain pre-execution",
+            case.id
+        );
+        assert_eq!(
+            outcome.audit_event.payload.action, "gateway.mcp.tool.call",
+            "case {}",
+            case.id
+        );
+        assert_eq!(
+            outcome.audit_event.resource.resource_type, "mcp_server",
+            "case {}",
+            case.id
+        );
+        assert_eq!(
+            outcome.audit_event.policy_decision_id,
+            case.request.policy.policy_decision_id(),
+            "case {}",
+            case.id
+        );
+
+        let serialized = serde_json::to_string(&outcome).unwrap();
+        assert!(
+            !serialized.contains("secret_ref_"),
+            "case {} leaked credential reference in policy outcome",
+            case.id
+        );
+        assert!(
+            !serialized.contains("runner_unapproved"),
+            "case {} leaked denied runner binding in policy outcome",
+            case.id
+        );
+        assert!(
+            !serialized.contains("wg_mcp_policy_evil"),
+            "case {} leaked or accepted WG prefix-bypass scope in policy outcome",
+            case.id
+        );
+    }
+}
+
+#[test]
+fn mcp_tool_policy_rejects_invalid_risk_metadata_before_execution() {
+    let mut cases: Vec<McpToolPolicyFixtureCase> = fixture("mcp_tool_policy_cases");
+    let mut invalid = cases.remove(0).request;
+    invalid.tool.risk_level = McpToolRiskLevel::ReadOnly;
+    invalid.tool.side_effect_profile = McpToolSideEffectProfile::ExecutesCodeOrProcess;
+    invalid.tool.network_reach = McpToolNetworkReach::ExternalInternet;
+    invalid.tool.credential_requirement = McpToolCredentialRequirement::RequiredScopedReference;
+
+    let outcome = evaluate_tool_call_policy(&invalid);
+
+    assert_eq!(outcome.effect, McpToolPolicyEffect::Denied);
+    assert_eq!(
+        outcome.reason_code.as_deref(),
+        Some("mcp_tool_risk_metadata_invalid")
+    );
+    assert_eq!(
+        outcome.normalized_error.as_ref().unwrap().code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_eq!(
+        outcome.usage_event.payload.measurements.tool_invocations,
+        Some(0)
+    );
+}
+
+#[test]
 fn rejects_unsupported_gateway_protocol_fixture() {
     let bytes = std::fs::read("fixtures/gateway/unsupported_protocol/scoped_model_request.json")
         .expect("unsupported protocol fixture should exist");
@@ -916,6 +1053,11 @@ fn contract_compatibility_matrix_declares_supported_versions() {
         .iter()
         .any(|version| version == GATEWAY_PROTOCOL_VERSION));
     assert!(event_versions.iter().any(|version| version == "0.1.0"));
+    assert!(matrix["gateway"]["fixtures"]
+        .as_array()
+        .expect("fixture paths must be declared")
+        .iter()
+        .any(|fixture| fixture == "fixtures/gateway/v0_1/mcp_tool_policy_cases.json"));
 }
 
 #[test]
