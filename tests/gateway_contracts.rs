@@ -20,6 +20,7 @@ use taskotter_gateway::{
         OpenAiCompatibleHttpResponse, OpenAiCompatibleProviderAdapter, OpenAiCompatibleStreamEvent,
     },
     simulator::GatewaySimulationFixture,
+    usage::GatewayRelayReasonCode,
 };
 use tower::ServiceExt;
 
@@ -65,21 +66,44 @@ fn relay_payload(provider_id: &str) -> Value {
 }
 
 #[tokio::test]
-async fn routes_adapter_and_emits_usage_event() {
+async fn routes_adapter_and_emits_gateway_relay_audit_event() {
     let (status, body) = post_json("/v1/ai/relay", relay_payload("provider_1")).await;
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["response"]["provider_kind"], "open_ai_compatible");
     assert_eq!(body["response"]["stream_placeholder"], true);
     assert_eq!(
-        body["usage_audit_event"]["schema_version"],
-        "usage_audit_event.v1"
+        body["gateway_relay_audit_event"]["schema_version"],
+        "gateway_relay_audit.v1"
     );
-    assert_eq!(body["usage_audit_event"]["status"], "succeeded");
+    assert!(body["usage_audit_event"].is_null());
+    assert_eq!(body["gateway_relay_audit_event"]["status"], "succeeded");
     assert_eq!(
-        body["usage_audit_event"]["decision_id"],
+        body["gateway_relay_audit_event"]["decision_id"],
         "local-policy:ai.relay"
     );
+    assert_eq!(body["response"]["routing_reason_code"], "primary_selected");
+    assert_eq!(
+        body["gateway_relay_audit_event"]["routing_reason_code"],
+        "primary_selected"
+    );
+}
+
+#[tokio::test]
+async fn fallback_route_propagates_reason_code_to_response_and_audit() {
+    let (status, body) = post_json("/v1/ai/relay", relay_payload("fallback_provider")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["response"]["selected_provider_id"],
+        "fallback_provider"
+    );
+    assert_eq!(body["response"]["routing_reason_code"], "fallback_selected");
+    assert_eq!(
+        body["gateway_relay_audit_event"]["routing_reason_code"],
+        "fallback_selected"
+    );
+    assert_eq!(body["gateway_relay_audit_event"]["status"], "succeeded");
 }
 
 #[tokio::test]
@@ -90,10 +114,15 @@ async fn policy_hook_denies_disabled_provider() {
     assert_eq!(body["error"]["code"], "policy_denied");
     assert_eq!(body["error"]["retryable"], false);
     assert_eq!(
-        body["usage_audit_event"]["schema_version"],
-        "usage_audit_event.v1"
+        body["gateway_relay_audit_event"]["schema_version"],
+        "gateway_relay_audit.v1"
     );
-    assert_eq!(body["usage_audit_event"]["status"], "denied");
+    assert!(body["usage_audit_event"].is_null());
+    assert_eq!(body["gateway_relay_audit_event"]["status"], "denied");
+    assert_eq!(
+        body["gateway_relay_audit_event"]["routing_reason_code"],
+        "policy_denied"
+    );
 }
 
 #[tokio::test]
@@ -107,10 +136,15 @@ async fn provider_timeout_has_stable_error_shape() {
     assert_eq!(body["error"]["retryable"], true);
     assert_eq!(body["error"]["timeout_ms"], 0);
     assert_eq!(
-        body["usage_audit_event"]["schema_version"],
-        "usage_audit_event.v1"
+        body["gateway_relay_audit_event"]["schema_version"],
+        "gateway_relay_audit.v1"
     );
-    assert_eq!(body["usage_audit_event"]["status"], "timeout");
+    assert!(body["usage_audit_event"].is_null());
+    assert_eq!(body["gateway_relay_audit_event"]["status"], "timeout");
+    assert_eq!(
+        body["gateway_relay_audit_event"]["routing_reason_code"],
+        "provider_timeout"
+    );
 }
 
 #[test]
@@ -133,6 +167,18 @@ fn mcp_resolution_models_runner_hosted_mode_without_starting_runtime() {
 fn provider_kind_serializes_as_contract_value() {
     let value = serde_json::to_value(ProviderKind::LocalRunner).unwrap();
     assert_eq!(value, json!("local_runner"));
+}
+
+#[test]
+fn routing_reason_code_metric_labels_are_bounded() {
+    assert_eq!(
+        GatewayRelayReasonCode::FallbackSelected.metric_label(),
+        "fallback_selected"
+    );
+    assert!(GatewayRelayReasonCode::is_metric_label("primary_selected"));
+    assert!(GatewayRelayReasonCode::is_metric_label("provider_timeout"));
+    assert!(!GatewayRelayReasonCode::is_metric_label("provider_123"));
+    assert_eq!(GatewayRelayReasonCode::METRIC_LABEL_VALUES.len(), 7);
 }
 
 fn fixture<T>(name: &str) -> T
