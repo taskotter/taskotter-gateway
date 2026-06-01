@@ -200,6 +200,13 @@
   "provider_capability": {
     "provider": "fake-hosted",
     "adapter_version": "0.1.0",
+    "default_model": "fake-deterministic-v1",
+    "routing": {
+      "route_key": "fake-hosted",
+      "provider_kind": "hosted",
+      "fallback_priority": 100,
+      "enabled": true
+    },
     "supported_models": [
       {
         "model": "fake-deterministic-v1",

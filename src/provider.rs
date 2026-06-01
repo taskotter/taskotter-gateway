@@ -1,9 +1,9 @@
 use crate::contracts::{
     EventActorRef, EventResourceRef, EventSource, FinishReason, ModelCapability, ModelResponse,
-    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, RouteType, RoutingMetadata,
-    RoutingReasonCode, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
-    UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
-    GATEWAY_PROTOCOL_VERSION,
+    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, ProviderCapabilityKind,
+    ProviderRoutingMetadata, RouteType, RoutingMetadata, RoutingReasonCode, ScopedModelRequest,
+    StreamFrame, StreamFrameType, UsageEvent, UsageMeasurement, UsageMeasurements, UsagePayload,
+    UsageSubject, UsageSubjectType, GATEWAY_PROTOCOL_VERSION,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +38,13 @@ impl ProviderAdapter for FakeProviderAdapter {
         ProviderAdapterCapability {
             provider: "fake-hosted".to_string(),
             adapter_version: "0.1.0".to_string(),
+            default_model: "fake-deterministic-v1".to_string(),
+            routing: ProviderRoutingMetadata {
+                route_key: "fake-hosted".to_string(),
+                provider_kind: ProviderCapabilityKind::Hosted,
+                fallback_priority: 100,
+                enabled: true,
+            },
             supported_models: vec![ModelCapability {
                 model: "fake-deterministic-v1".to_string(),
                 context_window_tokens: 8192,
@@ -71,6 +78,7 @@ impl ProviderAdapter for FakeProviderAdapter {
 
     fn complete(&self, request: &ScopedModelRequest) -> Result<ModelResponse, NormalizedError> {
         request.validate_boundary()?;
+        self.capability().supported_model_for(request)?;
         if request
             .messages
             .iter()
@@ -97,6 +105,7 @@ impl ProviderAdapter for FakeProviderAdapter {
 
     fn stream(&self, request: &ScopedModelRequest) -> Result<Vec<StreamFrame>, NormalizedError> {
         request.validate_boundary()?;
+        self.capability().supported_model_for(request)?;
         if request
             .messages
             .iter()
