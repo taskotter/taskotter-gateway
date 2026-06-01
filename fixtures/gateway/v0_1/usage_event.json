@@ -28,6 +28,13 @@
       "output_tokens": 3,
       "tool_invocations": 0,
       "estimated_cost_micros": 0
+    },
+    "routing": {
+      "selected_provider": "fake-hosted",
+      "selected_model": "fake-deterministic-v1",
+      "route_type": "primary",
+      "reason_code": "explicit_selection",
+      "fallback_attempt": 0
     }
   }
 }

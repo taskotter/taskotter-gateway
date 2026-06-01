@@ -165,6 +165,7 @@ impl McpRuntimeHost {
                             .to_string(),
                     ),
                 },
+                routing: None,
             },
         }
     }
@@ -190,6 +191,7 @@ impl McpRuntimeHost {
             payload: AuditPayload {
                 action: "gateway.mcp.session.open".to_string(),
                 outcome: AuditOutcome::Denied,
+                routing: None,
                 runtime_capability: Some(
                     HighRiskGatewayCapability::HostedMcpBilling
                         .contract_name()

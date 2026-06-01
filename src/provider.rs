@@ -1,10 +1,11 @@
 use crate::contracts::{
-    AuditEvent, AuditOutcome, AuditPayload, CredentialRefKind, EventActorRef, EventResourceRef,
-    EventSource, FinishReason, GatewayCapabilityGate, HealthStatus, HighRiskGatewayCapability,
-    ModelCapability, ModelResponse, NormalizedError, NormalizedErrorCode,
-    ProviderAdapterCapability, ProviderAdapterHealth, ProviderCapabilityKind,
-    ProviderRoutingMetadata, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
-    UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
+    AuditEvent, AuditOutcome, AuditPayload, ContractExtensionPoint, CredentialRefKind,
+    EventActorRef, EventResourceRef, EventSource, FinishReason, GatewayCapabilityGate,
+    HealthStatus, HighRiskGatewayCapability, ModelCapability, ModelResponse, NormalizedError,
+    NormalizedErrorCode, ProviderAdapterCapability, ProviderAdapterHealth, ProviderCapabilityKind,
+    ProviderRoutingMetadata, RouteType, RoutingMetadata, RoutingReasonCode, ScopedModelRequest,
+    StreamFrame, StreamFrameType, UsageEvent, UsageMeasurement, UsageMeasurements, UsagePayload,
+    UsageSubject, UsageSubjectType, GATEWAY_PROTOCOL_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -127,7 +128,9 @@ impl OpenAiCompatibleProviderAdapter {
             .unwrap_or_else(|| usage_for_content(request, content));
 
         Ok(ModelResponse {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             provider: request.provider.clone(),
             model: response
                 .body
@@ -138,6 +141,7 @@ impl OpenAiCompatibleProviderAdapter {
             content: content.to_string(),
             finish_reason,
             usage,
+            routing: routing_metadata(request, RoutingReasonCode::ExplicitSelection),
         })
     }
 
@@ -149,12 +153,18 @@ impl OpenAiCompatibleProviderAdapter {
         request.validate_boundary()?;
 
         let mut frames = vec![StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: 0,
             frame_type: StreamFrameType::Start,
             delta: None,
             usage: None,
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::ExplicitSelection,
+            )),
         }];
 
         let mut final_usage = None;
@@ -162,12 +172,18 @@ impl OpenAiCompatibleProviderAdapter {
         for event in events {
             if let Some(error) = &event.error {
                 frames.push(StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: frames.len() as u32,
                     frame_type: StreamFrameType::Error,
                     delta: None,
                     usage: None,
                     error: Some(normalize_openai_error(event.status.unwrap_or(500), error)),
+                    routing: Some(routing_metadata(
+                        request,
+                        RoutingReasonCode::FallbackAfterError,
+                    )),
                 });
                 return Ok(frames);
             }
@@ -175,24 +191,30 @@ impl OpenAiCompatibleProviderAdapter {
             if let Some(usage) = event.usage.as_ref().and_then(usage_from_openai_value) {
                 final_usage = Some(usage.clone());
                 frames.push(StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: frames.len() as u32,
                     frame_type: StreamFrameType::UsageDelta,
                     delta: None,
                     usage: Some(usage),
                     error: None,
+                    routing: None,
                 });
             }
 
             for choice in &event.choices {
                 if let Some(delta) = choice.delta.content.as_deref() {
                     frames.push(StreamFrame {
+                        protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                         request_id: request.request_id.clone(),
+                        correlation_id: request.correlation_id.clone(),
                         sequence: frames.len() as u32,
                         frame_type: StreamFrameType::ContentDelta,
                         delta: Some(delta.to_string()),
                         usage: None,
                         error: None,
+                        routing: None,
                     });
                 }
                 if choice.finish_reason.is_some() {
@@ -203,12 +225,18 @@ impl OpenAiCompatibleProviderAdapter {
 
         let usage = final_usage.unwrap_or_else(|| usage_for_content(request, ""));
         frames.push(StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: frames.len() as u32,
             frame_type: StreamFrameType::Final,
             delta: None,
             usage: Some(usage),
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::ExplicitSelection,
+            )),
         });
 
         if !saw_final {
@@ -243,6 +271,10 @@ impl OpenAiCompatibleProviderAdapter {
             payload: AuditPayload {
                 action: "gateway.provider.invoke".to_string(),
                 outcome,
+                routing: Some(routing_metadata(
+                    request,
+                    RoutingReasonCode::ExplicitSelection,
+                )),
                 runtime_capability: Some(
                     HighRiskGatewayCapability::SensitiveProviderRouting
                         .contract_name()
@@ -293,6 +325,18 @@ impl ProviderAdapter for OpenAiCompatibleProviderAdapter {
             supports_streaming: true,
             supports_tool_calls: true,
             credential_ref_kinds: vec![CredentialRefKind::SecretRef],
+            routing_reason_codes: vec![
+                RoutingReasonCode::ExplicitSelection,
+                RoutingReasonCode::CapabilityMatch,
+                RoutingReasonCode::FallbackAfterError,
+            ],
+            extension_points: vec![
+                ContractExtensionPoint::ProviderMetadata,
+                ContractExtensionPoint::RoutingPolicy,
+                ContractExtensionPoint::StreamFrameMetadata,
+                ContractExtensionPoint::UsageMeasurements,
+                ContractExtensionPoint::AuditPayload,
+            ],
         }
     }
 
@@ -464,6 +508,25 @@ impl ProviderAdapter for FakeProviderAdapter {
             supports_streaming: true,
             supports_tool_calls: false,
             credential_ref_kinds: vec![crate::contracts::CredentialRefKind::SecretRef],
+            routing_reason_codes: vec![
+                RoutingReasonCode::ExplicitSelection,
+                RoutingReasonCode::PolicyDefault,
+                RoutingReasonCode::CapabilityMatch,
+                RoutingReasonCode::CostLimit,
+                RoutingReasonCode::LatencyPreference,
+                RoutingReasonCode::ResidencyConstraint,
+                RoutingReasonCode::RunnerLocalRequired,
+                RoutingReasonCode::FallbackAfterError,
+                RoutingReasonCode::FallbackAfterCapacity,
+                RoutingReasonCode::PolicyDenied,
+            ],
+            extension_points: vec![
+                crate::contracts::ContractExtensionPoint::ProviderMetadata,
+                crate::contracts::ContractExtensionPoint::RoutingPolicy,
+                crate::contracts::ContractExtensionPoint::StreamFrameMetadata,
+                crate::contracts::ContractExtensionPoint::UsageMeasurements,
+                crate::contracts::ContractExtensionPoint::AuditPayload,
+            ],
         }
     }
 
@@ -482,12 +545,15 @@ impl ProviderAdapter for FakeProviderAdapter {
         let usage = usage_for(request, &content);
 
         Ok(ModelResponse {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             provider: request.provider.clone(),
             model: request.model.clone(),
             content,
             finish_reason: FinishReason::Stop,
             usage,
+            routing: routing_metadata(request, RoutingReasonCode::ExplicitSelection),
         })
     }
 
@@ -501,20 +567,32 @@ impl ProviderAdapter for FakeProviderAdapter {
         {
             return Ok(vec![
                 StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: 0,
                     frame_type: StreamFrameType::Start,
                     delta: None,
                     usage: None,
                     error: None,
+                    routing: Some(routing_metadata(
+                        request,
+                        RoutingReasonCode::ExplicitSelection,
+                    )),
                 },
                 StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: 1,
                     frame_type: StreamFrameType::Error,
                     delta: None,
                     usage: None,
                     error: Some(rate_limit_error()),
+                    routing: Some(routing_metadata(
+                        request,
+                        RoutingReasonCode::FallbackAfterError,
+                    )),
                 },
             ]);
         }
@@ -523,40 +601,58 @@ impl ProviderAdapter for FakeProviderAdapter {
         let usage = usage_for(request, &content);
         let words: Vec<&str> = content.split_whitespace().collect();
         let mut frames = vec![StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: 0,
             frame_type: StreamFrameType::Start,
             delta: None,
             usage: None,
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::ExplicitSelection,
+            )),
         }];
 
         for (index, word) in words.iter().enumerate() {
             frames.push(StreamFrame {
+                protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                 request_id: request.request_id.clone(),
+                correlation_id: request.correlation_id.clone(),
                 sequence: (index + 1) as u32,
                 frame_type: StreamFrameType::ContentDelta,
                 delta: Some((*word).to_string()),
                 usage: None,
                 error: None,
+                routing: None,
             });
         }
 
         frames.push(StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: (words.len() + 1) as u32,
             frame_type: StreamFrameType::UsageDelta,
             delta: None,
             usage: Some(usage.clone()),
             error: None,
+            routing: None,
         });
         frames.push(StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: (words.len() + 2) as u32,
             frame_type: StreamFrameType::Final,
             delta: None,
             usage: Some(usage),
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::ExplicitSelection,
+            )),
         });
 
         Ok(frames)
@@ -570,6 +666,9 @@ impl ProviderAdapter for FakeProviderAdapter {
     ) -> UsageEvent {
         let policy_decision_id = request.policy.policy_decision_id().to_string();
         let usage = response.map(|response| response.usage.clone());
+        let routing = response
+            .map(|response| response.routing.clone())
+            .or_else(|| request.routing.clone());
 
         UsageEvent {
             id: EVENT_ID_USAGE.to_string(),
@@ -601,6 +700,7 @@ impl ProviderAdapter for FakeProviderAdapter {
                     metering_unit: None,
                     runtime_capability: None,
                 },
+                routing,
             },
         }
     }
@@ -627,6 +727,20 @@ fn usage_for(request: &ScopedModelRequest, content: &str) -> UsageMeasurement {
         output_tokens,
         total_tokens: input_tokens + output_tokens,
     }
+}
+
+fn routing_metadata(
+    request: &ScopedModelRequest,
+    reason_code: RoutingReasonCode,
+) -> RoutingMetadata {
+    request.routing.clone().unwrap_or_else(|| RoutingMetadata {
+        selected_provider: request.provider.clone(),
+        selected_model: request.model.clone(),
+        route_type: RouteType::Primary,
+        reason_code,
+        fallback_attempt: 0,
+        fallback_from_provider: None,
+    })
 }
 
 fn count_tokens(value: &str) -> u32 {
@@ -677,6 +791,14 @@ fn provider_usage_event(
                         .to_string(),
                 ),
             },
+            routing: Some(routing_metadata(
+                request,
+                if error.is_some() {
+                    RoutingReasonCode::FallbackAfterError
+                } else {
+                    RoutingReasonCode::ExplicitSelection
+                },
+            )),
         },
     }
 }
