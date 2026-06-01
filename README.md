@@ -34,6 +34,16 @@ Policy decisions use the control-plane canonical shape:
 attempts. The event includes `request_id`, optional `correlation_id`, subject,
 provider, `decision_id`, `status`, token counts, and estimated cost in micro-USD.
 
+## Deterministic Simulation Fixtures
+
+`fixtures/gateway/v0_1/gateway_simulation_eval.json` drives the repo-local
+`simulator` harness. It validates deterministic provider routing and fallback,
+streaming and non-streaming success, rate-limit and generic provider failure,
+malformed chunks, partial streams, timeout, cancellation, policy denial, quota
+denial, usage/audit lineage, and a gateway-hosted MCP lifecycle with one tool
+call. The fixture uses only scoped credential references and does not require
+live provider keys, hosted MCP runtime, private runner access, or paid resources.
+
 ## Safety Boundaries
 
 - Real provider keys, paid provider calls, private endpoint credentials, and production secret storage are not part of this scaffold.

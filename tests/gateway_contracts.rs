@@ -16,6 +16,7 @@ use taskotter_gateway::{
     mcp::McpRuntimeHost,
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
     provider::{FakeProviderAdapter, ProviderAdapter},
+    simulator::GatewaySimulationFixture,
 };
 use tower::ServiceExt;
 
@@ -477,4 +478,24 @@ fn contract_compatibility_matrix_declares_supported_versions() {
         .iter()
         .any(|version| version == GATEWAY_PROTOCOL_VERSION));
     assert!(event_versions.iter().any(|version| version == "0.1.0"));
+}
+
+#[test]
+fn gateway_simulation_eval_fixture_covers_provider_and_mcp_paths() {
+    let fixture: GatewaySimulationFixture = fixture("gateway_simulation_eval");
+
+    let report = fixture.validate().unwrap();
+
+    assert!(report.routing_primary > 0);
+    assert!(report.routing_fallback > 0);
+    assert!(report.streaming_success > 0);
+    assert!(report.non_streaming_success > 0);
+    assert!(report.rate_limit > 0);
+    assert!(report.malformed_stream > 0);
+    assert!(report.partial_stream > 0);
+    assert!(report.timeout > 0);
+    assert!(report.cancellation > 0);
+    assert!(report.policy_denial > 0);
+    assert!(report.quota_denial > 0);
+    assert!(report.mcp_lifecycle > 0);
 }

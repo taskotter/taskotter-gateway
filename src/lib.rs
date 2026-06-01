@@ -4,6 +4,7 @@ pub mod contracts;
 pub mod mcp;
 pub mod policy;
 pub mod provider;
+pub mod simulator;
 pub mod usage;
 
 use std::sync::Arc;
