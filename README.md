@@ -44,6 +44,8 @@ malformed chunks, partial streams, timeout, cancellation, policy denial, quota
 denial, usage/audit lineage, and a gateway-hosted MCP lifecycle with one tool
 call. The fixture uses only scoped credential references and does not require
 live provider keys, hosted MCP runtime, private runner access, or paid resources.
+Reusable alpha routing case names and adapter/routing/fallback usage are listed
+in `fixtures/gateway/v0_1/README.md`.
 
 ## Safety Boundaries
 
