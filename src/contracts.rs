@@ -27,12 +27,14 @@ pub enum ActorType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorRef {
     pub actor_type: ActorType,
     pub id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayRegistration {
     pub protocol_version: String,
     pub gateway_id: String,
@@ -42,6 +44,7 @@ pub struct GatewayRegistration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayHealth {
     pub status: HealthStatus,
     pub gateway_id: String,
@@ -58,6 +61,7 @@ pub enum HealthStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderAdapterHealth {
     pub provider: String,
     pub status: HealthStatus,
@@ -65,6 +69,7 @@ pub struct ProviderAdapterHealth {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpHostHealth {
     pub host_id: String,
     pub hosting_mode: McpHostingMode,
@@ -72,16 +77,89 @@ pub struct McpHostHealth {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderAdapterCapability {
     pub provider: String,
     pub adapter_version: String,
+    pub default_model: String,
+    pub routing: ProviderRoutingMetadata,
     pub supported_models: Vec<ModelCapability>,
     pub supports_streaming: bool,
     pub supports_tool_calls: bool,
     pub credential_ref_kinds: Vec<CredentialRefKind>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub routing_reason_codes: Vec<RoutingReasonCode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extension_points: Vec<ContractExtensionPoint>,
+}
+
+impl ProviderAdapterCapability {
+    pub fn supported_model_for(
+        &self,
+        request: &ScopedModelRequest,
+    ) -> Result<&ModelCapability, NormalizedError> {
+        if !self.routing.enabled {
+            return Err(NormalizedError::policy_denied(
+                "provider_capability_disabled",
+                "Provider capability is disabled for routing.",
+            ));
+        }
+
+        if self.provider != request.provider && self.routing.route_key != request.provider {
+            return Err(NormalizedError::policy_denied(
+                "provider_capability_mismatch",
+                "Provider request does not match the adapter capability route key.",
+            ));
+        }
+
+        if request.stream && !self.supports_streaming {
+            return Err(NormalizedError::policy_denied(
+                "provider_streaming_not_supported",
+                "Provider capability does not allow streaming for this route.",
+            ));
+        }
+
+        if !self
+            .credential_ref_kinds
+            .contains(&request.credential_ref.kind)
+        {
+            return Err(NormalizedError::policy_denied(
+                "provider_credential_ref_kind_not_supported",
+                "Provider capability does not allow this credential reference kind.",
+            ));
+        }
+
+        self.supported_models
+            .iter()
+            .find(|model| model.model == request.model)
+            .ok_or_else(|| {
+                NormalizedError::policy_denied(
+                    "provider_model_not_supported",
+                    "Requested model is not declared in provider capability metadata.",
+                )
+            })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderRoutingMetadata {
+    pub route_key: String,
+    pub provider_kind: ProviderCapabilityKind,
+    pub fallback_priority: u32,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderCapabilityKind {
+    Hosted,
+    OpenAiCompatible,
+    LocalRunner,
+    FutureAdapter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelCapability {
     pub model: String,
     pub context_window_tokens: u32,
@@ -90,6 +168,7 @@ pub struct ModelCapability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpHostCapability {
     pub host_id: String,
     pub supported_hosting_modes: Vec<McpHostingMode>,
@@ -106,6 +185,7 @@ pub enum McpHostingMode {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeFeatureFlags {
     #[serde(default)]
     pub hosted_mcp_billing_enabled: bool,
@@ -137,6 +217,7 @@ impl HighRiskGatewayCapability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayCapabilityGate {
     pub capability: HighRiskGatewayCapability,
     pub feature_flag: String,
@@ -145,6 +226,7 @@ pub struct GatewayCapabilityGate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedModelRequest {
     pub protocol_version: String,
     pub request_id: String,
@@ -157,6 +239,8 @@ pub struct ScopedModelRequest {
     pub stream: bool,
     pub policy: PolicyInstruction,
     pub credential_ref: ScopedCredentialRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 impl ScopedModelRequest {
@@ -167,12 +251,14 @@ impl ScopedModelRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelMessage {
     pub role: String,
     pub content: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedMcpSessionRequest {
     pub protocol_version: String,
     pub session_id: String,
@@ -248,6 +334,7 @@ impl PolicyInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedCredentialRef {
     pub kind: CredentialRefKind,
     pub reference: String,
@@ -284,13 +371,17 @@ pub enum CredentialRefKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelResponse {
+    pub protocol_version: String,
     pub request_id: String,
+    pub correlation_id: String,
     pub provider: String,
     pub model: String,
     pub content: String,
     pub finish_reason: FinishReason,
     pub usage: UsageMeasurement,
+    pub routing: RoutingMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,13 +395,63 @@ pub enum FinishReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingMetadata {
+    pub selected_provider: String,
+    pub selected_model: String,
+    pub route_type: RouteType,
+    pub reason_code: RoutingReasonCode,
+    pub fallback_attempt: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_from_provider: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RouteType {
+    Primary,
+    Fallback,
+    Denied,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingReasonCode {
+    ExplicitSelection,
+    PolicyDefault,
+    CapabilityMatch,
+    CostLimit,
+    LatencyPreference,
+    ResidencyConstraint,
+    RunnerLocalRequired,
+    FallbackAfterError,
+    FallbackAfterCapacity,
+    PolicyDenied,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContractExtensionPoint {
+    ProviderMetadata,
+    RoutingPolicy,
+    StreamFrameMetadata,
+    UsageMeasurements,
+    AuditPayload,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StreamFrame {
+    pub protocol_version: String,
     pub request_id: String,
+    pub correlation_id: String,
     pub sequence: u32,
     pub frame_type: StreamFrameType,
     pub delta: Option<String>,
     pub usage: Option<UsageMeasurement>,
     pub error: Option<NormalizedError>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +465,7 @@ pub enum StreamFrameType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UsageMeasurement {
     pub input_tokens: u32,
     pub output_tokens: u32,
@@ -362,6 +504,8 @@ pub enum EventSource {
 pub struct UsagePayload {
     pub subject: UsageSubject,
     pub measurements: UsageMeasurements,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -457,6 +601,8 @@ pub struct AuditPayload {
     pub action: String,
     pub outcome: AuditOutcome,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_capability: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feature_flag: Option<String>,
@@ -474,6 +620,7 @@ pub enum AuditOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NormalizedError {
     pub code: NormalizedErrorCode,
     pub message: String,
@@ -503,4 +650,19 @@ pub enum NormalizedErrorCode {
     UpstreamTimeout,
     MalformedUpstreamResponse,
     InvalidGatewayRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlphaNormalizedContractSnapshot {
+    pub protocol_version: String,
+    pub request: ScopedModelRequest,
+    pub response: ModelResponse,
+    pub stream: Vec<StreamFrame>,
+    pub usage: UsageEvent,
+    pub audit: AuditEvent,
+    pub provider_capability: ProviderAdapterCapability,
+    pub normalized_error: NormalizedError,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extension_points: Vec<ContractExtensionPoint>,
 }

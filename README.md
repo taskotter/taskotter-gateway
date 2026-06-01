@@ -23,6 +23,7 @@ The server listens on `127.0.0.1:8080` by default. Override with `TASKOTTER_GATE
 - `POST /v1/mcp/resolve` accepts an MCP endpoint model and returns the policy-visible lifecycle mode.
 - `GET /healthz` returns service health.
 - Versioned gateway protocol structs and JSON fixtures validate the gateway/control-plane contract.
+- The alpha normalized schema ownership note lives in `docs/gateway-alpha-normalized-schema.md`.
 - The deterministic fake provider adapter and MCP runtime host placeholders support local compatibility tests without provider credentials or paid resources.
 
 Policy decisions use the control-plane canonical shape:

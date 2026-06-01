@@ -1,0 +1,20 @@
+{
+  "id": "chatcmpl_gateway_fixture",
+  "object": "chat.completion",
+  "model": "fake-deterministic-v1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "adapter normalized response"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 11,
+    "completion_tokens": 3,
+    "total_tokens": 14
+  }
+}
