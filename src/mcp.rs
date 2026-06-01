@@ -518,25 +518,52 @@ fn tool_call_denial_reason(request: &McpToolCallPolicyRequest) -> Option<&'stati
                 return Some("credential_reference_not_allowed");
             }
         }
-        McpToolCredentialRequirement::OptionalScopedReference => {}
+        McpToolCredentialRequirement::OptionalScopedReference => {
+            if let Some(credential_ref) = &request.credential_ref {
+                return validate_scoped_credential_binding(
+                    credential_ref,
+                    &request.working_group_id,
+                );
+            }
+        }
         McpToolCredentialRequirement::RequiredScopedReference => {
             let Some(credential_ref) = &request.credential_ref else {
                 return Some("credential_reference_required");
             };
-            if !credential_ref.scope.starts_with(&request.working_group_id) {
-                return Some("credential_scope_mismatch");
-            }
-            if !matches!(
-                credential_ref.kind,
-                CredentialRefKind::ExternalMcpCredentialRef
-                    | CredentialRefKind::RunnerJobCredentialRef
-            ) {
-                return Some("credential_reference_kind_not_allowed");
+            if let Some(reason) =
+                validate_scoped_credential_binding(credential_ref, &request.working_group_id)
+            {
+                return Some(reason);
             }
         }
     }
 
     None
+}
+
+fn validate_scoped_credential_binding(
+    credential_ref: &ScopedCredentialRef,
+    working_group_id: &str,
+) -> Option<&'static str> {
+    if !credential_scope_matches_working_group(&credential_ref.scope, working_group_id) {
+        return Some("credential_scope_mismatch");
+    }
+
+    if !matches!(
+        credential_ref.kind,
+        CredentialRefKind::ExternalMcpCredentialRef | CredentialRefKind::RunnerJobCredentialRef
+    ) {
+        return Some("credential_reference_kind_not_allowed");
+    }
+
+    None
+}
+
+fn credential_scope_matches_working_group(scope: &str, working_group_id: &str) -> bool {
+    scope == working_group_id
+        || scope
+            .strip_prefix(working_group_id)
+            .is_some_and(|remainder| remainder.starts_with('/'))
 }
 
 fn policy_outcome(

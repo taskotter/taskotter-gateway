@@ -566,5 +566,93 @@
         "scope": "wg_mcp_policy/runner/runner_approved/job/job_fixture"
       }
     }
+  },
+  {
+    "id": "sensitive_read_denies_optional_credential_scope_mismatch",
+    "expected_effect": "denied",
+    "expected_reason_code": "credential_scope_mismatch",
+    "request": {
+      "call_id": "call_mcp_optional_credential_scope",
+      "session_id": "sess_mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "working_group_id": "wg_mcp_policy",
+      "actor": {
+        "actor_type": "service",
+        "id": "svc_control_plane"
+      },
+      "skill_refs": [
+        "skill_mcp_sensitive_read"
+      ],
+      "tool": {
+        "tool_ref": "tool_fixture_sensitive_read",
+        "mcp_server_ref": "mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+        "owner": "control_plane",
+        "working_group_id": "wg_mcp_policy",
+        "risk_level": "sensitive_read",
+        "side_effect_profile": "reads_sensitive_data",
+        "credential_requirement": "optional_scoped_reference",
+        "network_reach": "gateway_internal",
+        "allowed_actor_types": [
+          "service"
+        ],
+        "required_skill_refs": [
+          "skill_mcp_sensitive_read"
+        ]
+      },
+      "policy": {
+        "kind": "decision_ref",
+        "decision_ref": "poldec_mcp_optional_credential_scope",
+        "expires_at": "2026-06-01T00:00:00Z"
+      },
+      "credential_ref": {
+        "kind": "external_mcp_credential_ref",
+        "reference": "secret_ref_mcp_optional_scope_fixture",
+        "scope": "wg_mcp_policy_evil/mcp/mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+      }
+    }
+  },
+  {
+    "id": "sensitive_read_denies_optional_credential_reference_kind",
+    "expected_effect": "denied",
+    "expected_reason_code": "credential_reference_kind_not_allowed",
+    "request": {
+      "call_id": "call_mcp_optional_credential_kind",
+      "session_id": "sess_mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "working_group_id": "wg_mcp_policy",
+      "actor": {
+        "actor_type": "service",
+        "id": "svc_control_plane"
+      },
+      "skill_refs": [
+        "skill_mcp_sensitive_read"
+      ],
+      "tool": {
+        "tool_ref": "tool_fixture_sensitive_read",
+        "mcp_server_ref": "mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+        "owner": "control_plane",
+        "working_group_id": "wg_mcp_policy",
+        "risk_level": "sensitive_read",
+        "side_effect_profile": "reads_sensitive_data",
+        "credential_requirement": "optional_scoped_reference",
+        "network_reach": "gateway_internal",
+        "allowed_actor_types": [
+          "service"
+        ],
+        "required_skill_refs": [
+          "skill_mcp_sensitive_read"
+        ]
+      },
+      "policy": {
+        "kind": "decision_ref",
+        "decision_ref": "poldec_mcp_optional_credential_kind",
+        "expires_at": "2026-06-01T00:00:00Z"
+      },
+      "credential_ref": {
+        "kind": "secret_ref",
+        "reference": "secret_ref_mcp_optional_kind_fixture",
+        "scope": "wg_mcp_policy/mcp/mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+      }
+    }
   }
 ]

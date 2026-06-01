@@ -889,7 +889,7 @@ fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
 fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
     let cases: Vec<McpToolPolicyFixtureCase> = fixture("mcp_tool_policy_cases");
 
-    assert_eq!(cases.len(), 12);
+    assert_eq!(cases.len(), 14);
     assert!(cases
         .iter()
         .any(|case| case.request.tool.risk_level == McpToolRiskLevel::ReadOnly));
@@ -904,6 +904,14 @@ fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
     assert!(cases.iter().any(|case| {
         case.request.tool.risk_level == McpToolRiskLevel::Execution
             && case.expected_effect == McpToolPolicyEffect::Denied
+    }));
+    assert!(cases.iter().any(|case| {
+        case.id == "sensitive_read_denies_optional_credential_scope_mismatch"
+            && case.expected_reason_code.as_deref() == Some("credential_scope_mismatch")
+    }));
+    assert!(cases.iter().any(|case| {
+        case.id == "sensitive_read_denies_optional_credential_reference_kind"
+            && case.expected_reason_code.as_deref() == Some("credential_reference_kind_not_allowed")
     }));
     for expected_reason in [
         "working_group_scope_mismatch",
@@ -974,6 +982,11 @@ fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
         assert!(
             !serialized.contains("runner_unapproved"),
             "case {} leaked denied runner binding in policy outcome",
+            case.id
+        );
+        assert!(
+            !serialized.contains("wg_mcp_policy_evil"),
+            "case {} leaked or accepted WG prefix-bypass scope in policy outcome",
             case.id
         );
     }
