@@ -2,9 +2,9 @@ use crate::contracts::{
     AuditEvent, AuditOutcome, AuditPayload, CredentialRefKind, EventActorRef, EventResourceRef,
     EventSource, FinishReason, GatewayCapabilityGate, HealthStatus, HighRiskGatewayCapability,
     ModelCapability, ModelResponse, NormalizedError, NormalizedErrorCode,
-    ProviderAdapterCapability, ProviderAdapterHealth, ScopedModelRequest, StreamFrame,
-    StreamFrameType, UsageEvent, UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject,
-    UsageSubjectType,
+    ProviderAdapterCapability, ProviderAdapterHealth, ProviderCapabilityKind,
+    ProviderRoutingMetadata, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
+    UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -278,6 +278,17 @@ impl ProviderAdapter for OpenAiCompatibleProviderAdapter {
         ProviderAdapterCapability {
             provider: self.provider.clone(),
             adapter_version: self.adapter_version.clone(),
+            default_model: self
+                .supported_models
+                .first()
+                .map(|model| model.model.clone())
+                .unwrap_or_else(|| "gpt-compatible-test".to_string()),
+            routing: ProviderRoutingMetadata {
+                route_key: self.provider.clone(),
+                provider_kind: ProviderCapabilityKind::OpenAiCompatible,
+                fallback_priority: 100,
+                enabled: true,
+            },
             supported_models: self.supported_models.clone(),
             supports_streaming: true,
             supports_tool_calls: true,
@@ -437,6 +448,13 @@ impl ProviderAdapter for FakeProviderAdapter {
         ProviderAdapterCapability {
             provider: "fake-hosted".to_string(),
             adapter_version: "0.1.0".to_string(),
+            default_model: "fake-deterministic-v1".to_string(),
+            routing: ProviderRoutingMetadata {
+                route_key: "fake-hosted".to_string(),
+                provider_kind: ProviderCapabilityKind::Hosted,
+                fallback_priority: 100,
+                enabled: true,
+            },
             supported_models: vec![ModelCapability {
                 model: "fake-deterministic-v1".to_string(),
                 context_window_tokens: 8192,
@@ -451,6 +469,7 @@ impl ProviderAdapter for FakeProviderAdapter {
 
     fn complete(&self, request: &ScopedModelRequest) -> Result<ModelResponse, NormalizedError> {
         request.validate_boundary()?;
+        self.capability().supported_model_for(request)?;
         if request
             .messages
             .iter()
@@ -474,6 +493,7 @@ impl ProviderAdapter for FakeProviderAdapter {
 
     fn stream(&self, request: &ScopedModelRequest) -> Result<Vec<StreamFrame>, NormalizedError> {
         request.validate_boundary()?;
+        self.capability().supported_model_for(request)?;
         if request
             .messages
             .iter()

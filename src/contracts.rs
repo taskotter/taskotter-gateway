@@ -75,10 +75,77 @@ pub struct McpHostHealth {
 pub struct ProviderAdapterCapability {
     pub provider: String,
     pub adapter_version: String,
+    pub default_model: String,
+    pub routing: ProviderRoutingMetadata,
     pub supported_models: Vec<ModelCapability>,
     pub supports_streaming: bool,
     pub supports_tool_calls: bool,
     pub credential_ref_kinds: Vec<CredentialRefKind>,
+}
+
+impl ProviderAdapterCapability {
+    pub fn supported_model_for(
+        &self,
+        request: &ScopedModelRequest,
+    ) -> Result<&ModelCapability, NormalizedError> {
+        if !self.routing.enabled {
+            return Err(NormalizedError::policy_denied(
+                "provider_capability_disabled",
+                "Provider capability is disabled for routing.",
+            ));
+        }
+
+        if self.provider != request.provider && self.routing.route_key != request.provider {
+            return Err(NormalizedError::policy_denied(
+                "provider_capability_mismatch",
+                "Provider request does not match the adapter capability route key.",
+            ));
+        }
+
+        if request.stream && !self.supports_streaming {
+            return Err(NormalizedError::policy_denied(
+                "provider_streaming_not_supported",
+                "Provider capability does not allow streaming for this route.",
+            ));
+        }
+
+        if !self
+            .credential_ref_kinds
+            .contains(&request.credential_ref.kind)
+        {
+            return Err(NormalizedError::policy_denied(
+                "provider_credential_ref_kind_not_supported",
+                "Provider capability does not allow this credential reference kind.",
+            ));
+        }
+
+        self.supported_models
+            .iter()
+            .find(|model| model.model == request.model)
+            .ok_or_else(|| {
+                NormalizedError::policy_denied(
+                    "provider_model_not_supported",
+                    "Requested model is not declared in provider capability metadata.",
+                )
+            })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderRoutingMetadata {
+    pub route_key: String,
+    pub provider_kind: ProviderCapabilityKind,
+    pub fallback_priority: u32,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderCapabilityKind {
+    Hosted,
+    OpenAiCompatible,
+    LocalRunner,
+    FutureAdapter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
