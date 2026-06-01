@@ -1127,5 +1127,108 @@
         }
       }
     }
+  ],
+  "usage_replay_cases": [
+    {
+      "id": "usage_retry_replay_idempotency",
+      "request": {
+        "protocol_version": "gateway.v0.1",
+        "request_id": "req_sim_usage_replay",
+        "correlation_id": "corr_sim_usage_replay",
+        "working_group_id": "wg_sim",
+        "actor": {
+          "actor_type": "agent",
+          "id": "agt_sim"
+        },
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "messages": [
+          {
+            "role": "user",
+            "content": "simulate retry replay"
+          }
+        ],
+        "stream": false,
+        "policy": {
+          "kind": "decision_ref",
+          "decision_ref": "poldec_sim_usage_replay",
+          "expires_at": "2026-06-01T00:00:00Z"
+        },
+        "credential_ref": {
+          "kind": "secret_ref",
+          "reference": "secret_ref_provider_fake_fixture",
+          "scope": "wg_sim/provider/fake-hosted/model/fake-deterministic-v1"
+        }
+      },
+      "usage_events": [
+        {
+          "id": "evt_sim_usage_replay_attempt_1",
+          "type": "usage.gateway_request.recorded",
+          "version": "0.1.0",
+          "occurred_at": "2026-01-01T00:00:01.000Z",
+          "source": "gateway",
+          "working_group_id": "wg_sim",
+          "actor": {
+            "type": "agent",
+            "id": "agt_sim"
+          },
+          "resource": {
+            "type": "provider",
+            "id": "fake-hosted"
+          },
+          "correlation_id": "corr_sim_usage_replay",
+          "request_id": "req_sim_usage_replay",
+          "policy_decision_id": "poldec_sim_usage_replay",
+          "idempotency_key": "usage_req_sim_usage_replay",
+          "payload": {
+            "subject": {
+              "type": "gateway_request",
+              "id": "req_sim_usage_replay"
+            },
+            "measurements": {
+              "duration_ms": 6,
+              "input_tokens": 3,
+              "output_tokens": 3,
+              "tool_invocations": 0,
+              "estimated_cost_micros": 0
+            }
+          }
+        },
+        {
+          "id": "evt_sim_usage_replay_attempt_2",
+          "type": "usage.gateway_request.recorded",
+          "version": "0.1.0",
+          "occurred_at": "2026-01-01T00:00:02.000Z",
+          "source": "gateway",
+          "working_group_id": "wg_sim",
+          "actor": {
+            "type": "agent",
+            "id": "agt_sim"
+          },
+          "resource": {
+            "type": "provider",
+            "id": "fake-hosted"
+          },
+          "correlation_id": "corr_sim_usage_replay",
+          "request_id": "req_sim_usage_replay",
+          "policy_decision_id": "poldec_sim_usage_replay",
+          "idempotency_key": "usage_req_sim_usage_replay",
+          "payload": {
+            "subject": {
+              "type": "gateway_request",
+              "id": "req_sim_usage_replay"
+            },
+            "measurements": {
+              "duration_ms": 6,
+              "input_tokens": 3,
+              "output_tokens": 3,
+              "tool_invocations": 0,
+              "estimated_cost_micros": 0
+            }
+          }
+        }
+      ],
+      "expected_unique_charge_count": 1
+    }
   ]
 }

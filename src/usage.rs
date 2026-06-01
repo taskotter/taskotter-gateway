@@ -8,6 +8,7 @@ use crate::{adapters::ProviderRef, policy::PolicySubject};
 pub enum UsageAttemptStatus {
     Succeeded,
     Denied,
+    QuotaDenied,
     Timeout,
     Cancelled,
     Failed,
@@ -23,6 +24,7 @@ pub struct UsageAuditEventV1 {
     pub subject: PolicySubject,
     pub provider: ProviderRef,
     pub decision_id: String,
+    pub idempotency_key: String,
     pub status: UsageAttemptStatus,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
@@ -45,6 +47,7 @@ impl UsageAuditEventV1 {
             subject,
             provider,
             decision_id,
+            idempotency_key: format!("usage:{request_id}"),
             status,
             prompt_tokens: 0,
             completion_tokens: 0,

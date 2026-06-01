@@ -20,6 +20,16 @@ pub struct ProviderRef {
     pub model: String,
     #[serde(default)]
     pub endpoint_id: Option<String>,
+    #[serde(default)]
+    pub allowed_working_group_ids: Vec<String>,
+    #[serde(default)]
+    pub allowed_agent_ids: Vec<String>,
+    #[serde(default)]
+    pub allowed_workflow_ids: Vec<String>,
+    #[serde(default)]
+    pub allowed_models: Vec<String>,
+    #[serde(default)]
+    pub data_boundary_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +103,29 @@ impl ProviderAdapter for StubProviderAdapter {
                 "provider relay timed out",
                 request.timeout_ms,
             ));
+        }
+
+        if request
+            .messages
+            .iter()
+            .any(|message| message.content.contains("simulate:mid_stream_quota"))
+        {
+            return Err(GatewayError::quota_exceeded(
+                "usage quota exceeded during provider stream",
+            ));
+        }
+
+        if let Some(max_tokens) = decision.max_tokens {
+            let prompt_tokens = request
+                .messages
+                .iter()
+                .map(|message| message.content.split_whitespace().count() as u64)
+                .sum::<u64>();
+            if prompt_tokens > max_tokens {
+                return Err(GatewayError::quota_exceeded(
+                    "provider request exceeds policy token quota",
+                ));
+            }
         }
 
         Ok(ProviderResponse {
