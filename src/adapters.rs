@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{api::GatewayError, policy::PolicyDecision, usage::RoutingReasonCode};
+use crate::{api::GatewayError, policy::PolicyDecision, usage::GatewayRelayReasonCode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,7 +46,7 @@ pub struct ProviderResponse {
     pub model: String,
     pub output_text: String,
     pub stream_placeholder: bool,
-    pub routing_reason_code: RoutingReasonCode,
+    pub routing_reason_code: GatewayRelayReasonCode,
 }
 
 #[async_trait]
@@ -98,9 +98,9 @@ impl ProviderAdapter for StubProviderAdapter {
         }
 
         let routing_reason_code = if request.provider.provider_id.starts_with("fallback_") {
-            RoutingReasonCode::FallbackSelected
+            GatewayRelayReasonCode::FallbackSelected
         } else {
-            RoutingReasonCode::PrimarySelected
+            GatewayRelayReasonCode::PrimarySelected
         };
 
         Ok(ProviderResponse {

@@ -20,7 +20,7 @@ use taskotter_gateway::{
         OpenAiCompatibleHttpResponse, OpenAiCompatibleProviderAdapter, OpenAiCompatibleStreamEvent,
     },
     simulator::GatewaySimulationFixture,
-    usage::RoutingReasonCode,
+    usage::GatewayRelayReasonCode,
 };
 use tower::ServiceExt;
 
@@ -172,13 +172,13 @@ fn provider_kind_serializes_as_contract_value() {
 #[test]
 fn routing_reason_code_metric_labels_are_bounded() {
     assert_eq!(
-        RoutingReasonCode::FallbackSelected.metric_label(),
+        GatewayRelayReasonCode::FallbackSelected.metric_label(),
         "fallback_selected"
     );
-    assert!(RoutingReasonCode::is_metric_label("primary_selected"));
-    assert!(RoutingReasonCode::is_metric_label("provider_timeout"));
-    assert!(!RoutingReasonCode::is_metric_label("provider_123"));
-    assert_eq!(RoutingReasonCode::METRIC_LABEL_VALUES.len(), 7);
+    assert!(GatewayRelayReasonCode::is_metric_label("primary_selected"));
+    assert!(GatewayRelayReasonCode::is_metric_label("provider_timeout"));
+    assert!(!GatewayRelayReasonCode::is_metric_label("provider_123"));
+    assert_eq!(GatewayRelayReasonCode::METRIC_LABEL_VALUES.len(), 7);
 }
 
 fn fixture<T>(name: &str) -> T

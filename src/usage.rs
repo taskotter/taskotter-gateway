@@ -5,7 +5,7 @@ use crate::{adapters::ProviderRef, policy::PolicySubject};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RoutingReasonCode {
+pub enum GatewayRelayReasonCode {
     PrimarySelected,
     FallbackSelected,
     PolicyDenied,
@@ -15,7 +15,7 @@ pub enum RoutingReasonCode {
     Cancelled,
 }
 
-impl RoutingReasonCode {
+impl GatewayRelayReasonCode {
     pub const METRIC_LABEL_VALUES: [&'static str; 7] = [
         "primary_selected",
         "fallback_selected",
@@ -63,7 +63,7 @@ pub struct GatewayRelayAuditEventV1 {
     pub subject: PolicySubject,
     pub provider: ProviderRef,
     pub decision_id: String,
-    pub routing_reason_code: RoutingReasonCode,
+    pub routing_reason_code: GatewayRelayReasonCode,
     pub status: UsageAttemptStatus,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
@@ -79,11 +79,11 @@ impl GatewayRelayAuditEventV1 {
         status: UsageAttemptStatus,
     ) -> Self {
         let routing_reason_code = match status {
-            UsageAttemptStatus::Succeeded => RoutingReasonCode::PrimarySelected,
-            UsageAttemptStatus::Denied => RoutingReasonCode::PolicyDenied,
-            UsageAttemptStatus::Timeout => RoutingReasonCode::ProviderTimeout,
-            UsageAttemptStatus::Cancelled => RoutingReasonCode::Cancelled,
-            UsageAttemptStatus::Failed => RoutingReasonCode::ProviderError,
+            UsageAttemptStatus::Succeeded => GatewayRelayReasonCode::PrimarySelected,
+            UsageAttemptStatus::Denied => GatewayRelayReasonCode::PolicyDenied,
+            UsageAttemptStatus::Timeout => GatewayRelayReasonCode::ProviderTimeout,
+            UsageAttemptStatus::Cancelled => GatewayRelayReasonCode::Cancelled,
+            UsageAttemptStatus::Failed => GatewayRelayReasonCode::ProviderError,
         };
 
         Self::with_reason_code(
@@ -102,7 +102,7 @@ impl GatewayRelayAuditEventV1 {
         provider: ProviderRef,
         decision_id: String,
         status: UsageAttemptStatus,
-        routing_reason_code: RoutingReasonCode,
+        routing_reason_code: GatewayRelayReasonCode,
     ) -> Self {
         Self {
             schema_version: "gateway_relay_audit.v1".to_string(),

@@ -16,7 +16,7 @@ use crate::{
     },
     mcp::{resolve_endpoint, McpEndpoint, McpResolution},
     policy::{PolicyCheck, PolicyEngine, PolicySubject},
-    usage::{GatewayRelayAuditEventV1, RoutingReasonCode, UsageAttemptStatus},
+    usage::{GatewayRelayAuditEventV1, GatewayRelayReasonCode, UsageAttemptStatus},
 };
 
 #[derive(Clone)]
@@ -71,7 +71,7 @@ pub async fn relay_ai_request(
             payload.provider,
             decision.decision_id,
             UsageAttemptStatus::Denied,
-            RoutingReasonCode::PolicyDenied,
+            GatewayRelayReasonCode::PolicyDenied,
         );
         return Err(GatewayError::policy_denied(decision.reason)
             .with_gateway_relay_audit_event(gateway_relay_audit_event));
@@ -155,10 +155,10 @@ impl GatewayError {
         }
     }
 
-    fn routing_reason_code(&self) -> RoutingReasonCode {
+    fn routing_reason_code(&self) -> GatewayRelayReasonCode {
         match self {
-            GatewayError::PolicyDenied { .. } => RoutingReasonCode::PolicyDenied,
-            GatewayError::Timeout { .. } => RoutingReasonCode::ProviderTimeout,
+            GatewayError::PolicyDenied { .. } => GatewayRelayReasonCode::PolicyDenied,
+            GatewayError::Timeout { .. } => GatewayRelayReasonCode::ProviderTimeout,
         }
     }
 
