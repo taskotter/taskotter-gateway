@@ -17,6 +17,7 @@ use taskotter_gateway::{
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
     provider::{FakeProviderAdapter, ProviderAdapter},
     simulator::GatewaySimulationFixture,
+    usage::RoutingReasonCode,
 };
 use tower::ServiceExt;
 
@@ -77,6 +78,28 @@ async fn routes_adapter_and_emits_usage_event() {
         body["usage_audit_event"]["decision_id"],
         "local-policy:ai.relay"
     );
+    assert_eq!(body["response"]["routing_reason_code"], "primary_selected");
+    assert_eq!(
+        body["usage_audit_event"]["routing_reason_code"],
+        "primary_selected"
+    );
+}
+
+#[tokio::test]
+async fn fallback_route_propagates_reason_code_to_response_and_audit() {
+    let (status, body) = post_json("/v1/ai/relay", relay_payload("fallback_provider")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["response"]["selected_provider_id"],
+        "fallback_provider"
+    );
+    assert_eq!(body["response"]["routing_reason_code"], "fallback_selected");
+    assert_eq!(
+        body["usage_audit_event"]["routing_reason_code"],
+        "fallback_selected"
+    );
+    assert_eq!(body["usage_audit_event"]["status"], "succeeded");
 }
 
 #[tokio::test]
@@ -91,6 +114,10 @@ async fn policy_hook_denies_disabled_provider() {
         "usage_audit_event.v1"
     );
     assert_eq!(body["usage_audit_event"]["status"], "denied");
+    assert_eq!(
+        body["usage_audit_event"]["routing_reason_code"],
+        "policy_denied"
+    );
 }
 
 #[tokio::test]
@@ -108,6 +135,10 @@ async fn provider_timeout_has_stable_error_shape() {
         "usage_audit_event.v1"
     );
     assert_eq!(body["usage_audit_event"]["status"], "timeout");
+    assert_eq!(
+        body["usage_audit_event"]["routing_reason_code"],
+        "provider_timeout"
+    );
 }
 
 #[test]
@@ -130,6 +161,18 @@ fn mcp_resolution_models_runner_hosted_mode_without_starting_runtime() {
 fn provider_kind_serializes_as_contract_value() {
     let value = serde_json::to_value(ProviderKind::LocalRunner).unwrap();
     assert_eq!(value, json!("local_runner"));
+}
+
+#[test]
+fn routing_reason_code_metric_labels_are_bounded() {
+    assert_eq!(
+        RoutingReasonCode::FallbackSelected.metric_label(),
+        "fallback_selected"
+    );
+    assert!(RoutingReasonCode::is_metric_label("primary_selected"));
+    assert!(RoutingReasonCode::is_metric_label("provider_timeout"));
+    assert!(!RoutingReasonCode::is_metric_label("provider_123"));
+    assert_eq!(RoutingReasonCode::METRIC_LABEL_VALUES.len(), 7);
 }
 
 fn fixture<T>(name: &str) -> T

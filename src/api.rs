@@ -16,7 +16,7 @@ use crate::{
     },
     mcp::{resolve_endpoint, McpEndpoint, McpResolution},
     policy::{PolicyCheck, PolicyEngine, PolicySubject},
-    usage::{UsageAttemptStatus, UsageAuditEventV1},
+    usage::{RoutingReasonCode, UsageAttemptStatus, UsageAuditEventV1},
 };
 
 #[derive(Clone)]
@@ -65,12 +65,13 @@ pub async fn relay_ai_request(
     let decision = state.policy.evaluate(policy_check).await;
 
     if !decision.allowed {
-        let usage_audit_event = UsageAuditEventV1::new(
+        let usage_audit_event = UsageAuditEventV1::with_reason_code(
             payload.request_id,
             payload.subject,
             payload.provider,
             decision.decision_id,
             UsageAttemptStatus::Denied,
+            RoutingReasonCode::PolicyDenied,
         );
         return Err(
             GatewayError::policy_denied(decision.reason).with_usage_event(usage_audit_event)
@@ -87,22 +88,24 @@ pub async fn relay_ai_request(
     let provider_response = match state.providers.route(normalized, decision.clone()).await {
         Ok(response) => response,
         Err(error) => {
-            let usage_audit_event = UsageAuditEventV1::new(
+            let usage_audit_event = UsageAuditEventV1::with_reason_code(
                 payload.request_id,
                 payload.subject,
                 payload.provider,
                 decision.decision_id,
                 error.usage_status(),
+                error.routing_reason_code(),
             );
             return Err(error.with_usage_event(usage_audit_event));
         }
     };
-    let usage_audit_event = UsageAuditEventV1::new(
+    let usage_audit_event = UsageAuditEventV1::with_reason_code(
         payload.request_id,
         payload.subject,
         payload.provider,
         decision.decision_id,
         UsageAttemptStatus::Succeeded,
+        provider_response.routing_reason_code,
     );
 
     Ok(Json(AiRelayResponse {
@@ -150,6 +153,13 @@ impl GatewayError {
         match self {
             GatewayError::PolicyDenied { .. } => UsageAttemptStatus::Denied,
             GatewayError::Timeout { .. } => UsageAttemptStatus::Timeout,
+        }
+    }
+
+    fn routing_reason_code(&self) -> RoutingReasonCode {
+        match self {
+            GatewayError::PolicyDenied { .. } => RoutingReasonCode::PolicyDenied,
+            GatewayError::Timeout { .. } => RoutingReasonCode::ProviderTimeout,
         }
     }
 
