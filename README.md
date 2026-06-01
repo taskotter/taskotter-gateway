@@ -23,3 +23,10 @@ Frontend clients must not call this service directly. The TaskOtter control plan
 cargo fmt --check
 cargo test
 ```
+
+`contract-compatibility.json` declares the control-plane and gateway protocol
+versions this repository consumes. CI calls the repo-local compatibility tests
+`cargo test contract_compatibility_matrix_declares_supported_versions` and
+`cargo test rejects_unsupported_gateway_protocol_fixture` so unsupported gateway
+protocol fixtures fail before merge without requiring provider credentials or
+paid resources.
