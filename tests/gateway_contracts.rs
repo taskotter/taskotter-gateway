@@ -179,6 +179,10 @@ fn fixtures_round_trip_and_validate_boundaries() {
     signed_model_request.validate_boundary().unwrap();
     mcp_request.validate_boundary().unwrap();
     assert_eq!(capability.provider, "fake-hosted");
+    assert_eq!(capability.default_model, "fake-deterministic-v1");
+    assert_eq!(capability.routing.route_key, "fake-hosted");
+    assert_eq!(capability.routing.fallback_priority, 100);
+    assert!(capability.routing.enabled);
     assert!(capability.supports_streaming);
     assert_eq!(health.status, HealthStatus::Ok);
     assert_eq!(frames.last().unwrap().frame_type, StreamFrameType::Final);
@@ -251,6 +255,39 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
     );
     assert_eq!(usage.payload.measurements.input_tokens, Some(3));
     assert_eq!(usage.payload.measurements.estimated_cost_micros, Some(0));
+}
+
+#[test]
+fn provider_capability_metadata_is_the_adapter_route_boundary() {
+    let adapter = FakeProviderAdapter::new();
+    let capability = adapter.capability();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+
+    let model = capability.supported_model_for(&request).unwrap();
+    assert_eq!(model.model, "fake-deterministic-v1");
+
+    request.model = "future-model".to_string();
+    let error = capability.supported_model_for(&request).unwrap_err();
+    assert_eq!(error.code, NormalizedErrorCode::PolicyDenied);
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("provider_model_not_supported")
+    );
+}
+
+#[test]
+fn fake_provider_rejects_requests_outside_capability_metadata() {
+    let adapter = FakeProviderAdapter::new();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.provider = "unknown-provider".to_string();
+
+    let error = adapter.complete(&request).unwrap_err();
+
+    assert_eq!(error.code, NormalizedErrorCode::PolicyDenied);
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("provider_capability_mismatch")
+    );
 }
 
 #[test]
