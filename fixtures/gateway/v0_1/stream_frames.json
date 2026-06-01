@@ -1,14 +1,24 @@
 [
   {
+    "protocol_version": "gateway.v0.1",
     "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 0,
     "frame_type": "start",
     "delta": null,
     "usage": null,
-    "error": null
+    "error": null,
+    "routing": {
+      "provider": "fake-hosted",
+      "model": "fake-deterministic-v1",
+      "reason_code": "primary_selected",
+      "attempt": 1
+    }
   },
   {
+    "protocol_version": "gateway.v0.1",
     "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 1,
     "frame_type": "content_delta",
     "delta": "fake:fake-deterministic-v1:summarize",
@@ -16,7 +26,9 @@
     "error": null
   },
   {
+    "protocol_version": "gateway.v0.1",
     "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 2,
     "frame_type": "usage_delta",
     "delta": null,
@@ -28,7 +40,9 @@
     "error": null
   },
   {
+    "protocol_version": "gateway.v0.1",
     "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
     "sequence": 3,
     "frame_type": "final",
     "delta": null,
@@ -37,6 +51,12 @@
       "output_tokens": 3,
       "total_tokens": 6
     },
-    "error": null
+    "error": null,
+    "routing": {
+      "provider": "fake-hosted",
+      "model": "fake-deterministic-v1",
+      "reason_code": "primary_selected",
+      "attempt": 1
+    }
   }
 ]

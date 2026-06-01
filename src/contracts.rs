@@ -27,12 +27,14 @@ pub enum ActorType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorRef {
     pub actor_type: ActorType,
     pub id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayRegistration {
     pub protocol_version: String,
     pub gateway_id: String,
@@ -42,6 +44,7 @@ pub struct GatewayRegistration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayHealth {
     pub status: HealthStatus,
     pub gateway_id: String,
@@ -58,6 +61,7 @@ pub enum HealthStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderAdapterHealth {
     pub provider: String,
     pub status: HealthStatus,
@@ -65,6 +69,7 @@ pub struct ProviderAdapterHealth {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpHostHealth {
     pub host_id: String,
     pub hosting_mode: McpHostingMode,
@@ -72,6 +77,7 @@ pub struct McpHostHealth {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProviderAdapterCapability {
     pub provider: String,
     pub adapter_version: String,
@@ -79,9 +85,14 @@ pub struct ProviderAdapterCapability {
     pub supports_streaming: bool,
     pub supports_tool_calls: bool,
     pub credential_ref_kinds: Vec<CredentialRefKind>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub routing_reason_codes: Vec<RoutingReasonCode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extension_points: Vec<ContractExtensionPoint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelCapability {
     pub model: String,
     pub context_window_tokens: u32,
@@ -90,6 +101,7 @@ pub struct ModelCapability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpHostCapability {
     pub host_id: String,
     pub supported_hosting_modes: Vec<McpHostingMode>,
@@ -106,6 +118,7 @@ pub enum McpHostingMode {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeFeatureFlags {
     #[serde(default)]
     pub hosted_mcp_billing_enabled: bool,
@@ -137,6 +150,7 @@ impl HighRiskGatewayCapability {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GatewayCapabilityGate {
     pub capability: HighRiskGatewayCapability,
     pub feature_flag: String,
@@ -145,6 +159,7 @@ pub struct GatewayCapabilityGate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedModelRequest {
     pub protocol_version: String,
     pub request_id: String,
@@ -157,6 +172,8 @@ pub struct ScopedModelRequest {
     pub stream: bool,
     pub policy: PolicyInstruction,
     pub credential_ref: ScopedCredentialRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 impl ScopedModelRequest {
@@ -167,12 +184,14 @@ impl ScopedModelRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelMessage {
     pub role: String,
     pub content: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedMcpSessionRequest {
     pub protocol_version: String,
     pub session_id: String,
@@ -248,6 +267,7 @@ impl PolicyInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScopedCredentialRef {
     pub kind: CredentialRefKind,
     pub reference: String,
@@ -284,13 +304,17 @@ pub enum CredentialRefKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelResponse {
+    pub protocol_version: String,
     pub request_id: String,
+    pub correlation_id: String,
     pub provider: String,
     pub model: String,
     pub content: String,
     pub finish_reason: FinishReason,
     pub usage: UsageMeasurement,
+    pub routing: RoutingMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,13 +328,49 @@ pub enum FinishReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoutingMetadata {
+    pub provider: String,
+    pub model: String,
+    pub reason_code: RoutingReasonCode,
+    pub attempt: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_from_provider: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoutingReasonCode {
+    PrimarySelected,
+    FallbackAfterRetryableError,
+    FallbackAfterTimeout,
+    PolicyDenied,
+    CapabilityUnsupported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContractExtensionPoint {
+    ProviderMetadata,
+    RoutingPolicy,
+    StreamFrameMetadata,
+    UsageMeasurements,
+    AuditPayload,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StreamFrame {
+    pub protocol_version: String,
     pub request_id: String,
+    pub correlation_id: String,
     pub sequence: u32,
     pub frame_type: StreamFrameType,
     pub delta: Option<String>,
     pub usage: Option<UsageMeasurement>,
     pub error: Option<NormalizedError>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routing: Option<RoutingMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +384,7 @@ pub enum StreamFrameType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UsageMeasurement {
     pub input_tokens: u32,
     pub output_tokens: u32,
@@ -474,6 +535,7 @@ pub enum AuditOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NormalizedError {
     pub code: NormalizedErrorCode,
     pub message: String,
@@ -503,4 +565,19 @@ pub enum NormalizedErrorCode {
     UpstreamTimeout,
     MalformedUpstreamResponse,
     InvalidGatewayRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlphaNormalizedContractSnapshot {
+    pub protocol_version: String,
+    pub request: ScopedModelRequest,
+    pub response: ModelResponse,
+    pub stream: Vec<StreamFrame>,
+    pub usage: UsageEvent,
+    pub audit: AuditEvent,
+    pub provider_capability: ProviderAdapterCapability,
+    pub normalized_error: NormalizedError,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extension_points: Vec<ContractExtensionPoint>,
 }

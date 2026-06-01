@@ -1,0 +1,221 @@
+{
+  "protocol_version": "gateway.v0.1",
+  "request": {
+    "protocol_version": "gateway.v0.1",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "actor": {
+      "actor_type": "agent",
+      "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "provider": "fake-hosted",
+    "model": "fake-deterministic-v1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "summarize fixture contract"
+      }
+    ],
+    "stream": true,
+    "policy": {
+      "kind": "decision_ref",
+      "decision_ref": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "expires_at": "2026-06-01T00:00:00Z"
+    },
+    "credential_ref": {
+      "kind": "secret_ref",
+      "reference": "secret_ref_provider_fake_fixture",
+      "scope": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP/provider/fake-hosted/model/fake-deterministic-v1"
+    },
+    "routing": {
+      "provider": "fake-hosted",
+      "model": "fake-deterministic-v1",
+      "reason_code": "primary_selected",
+      "attempt": 1
+    }
+  },
+  "response": {
+    "protocol_version": "gateway.v0.1",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "provider": "fake-hosted",
+    "model": "fake-deterministic-v1",
+    "content": "fake:fake-deterministic-v1:summarize fixture contract",
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 3,
+      "output_tokens": 3,
+      "total_tokens": 6
+    },
+    "routing": {
+      "provider": "fake-hosted",
+      "model": "fake-deterministic-v1",
+      "reason_code": "primary_selected",
+      "attempt": 1
+    }
+  },
+  "stream": [
+    {
+      "protocol_version": "gateway.v0.1",
+      "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "sequence": 0,
+      "frame_type": "start",
+      "delta": null,
+      "usage": null,
+      "error": null,
+      "routing": {
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "reason_code": "primary_selected",
+        "attempt": 1
+      }
+    },
+    {
+      "protocol_version": "gateway.v0.1",
+      "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "sequence": 1,
+      "frame_type": "content_delta",
+      "delta": "fake:fake-deterministic-v1:summarize",
+      "usage": null,
+      "error": null
+    },
+    {
+      "protocol_version": "gateway.v0.1",
+      "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "sequence": 2,
+      "frame_type": "usage_delta",
+      "delta": null,
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 3,
+        "total_tokens": 6
+      },
+      "error": null
+    },
+    {
+      "protocol_version": "gateway.v0.1",
+      "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+      "sequence": 3,
+      "frame_type": "final",
+      "delta": null,
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 3,
+        "total_tokens": 6
+      },
+      "error": null,
+      "routing": {
+        "provider": "fake-hosted",
+        "model": "fake-deterministic-v1",
+        "reason_code": "primary_selected",
+        "attempt": 1
+      }
+    }
+  ],
+  "usage": {
+    "id": "evt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "type": "usage.gateway_request.recorded",
+    "version": "0.1.0",
+    "occurred_at": "2026-01-01T00:00:01.000Z",
+    "source": "gateway",
+    "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "actor": {
+      "type": "agent",
+      "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "resource": {
+      "type": "provider",
+      "id": "prv_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "policy_decision_id": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "idempotency_key": "usage_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "payload": {
+      "subject": {
+        "type": "gateway_request",
+        "id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+      },
+      "measurements": {
+        "duration_ms": 0,
+        "input_tokens": 3,
+        "output_tokens": 3,
+        "tool_invocations": 0,
+        "estimated_cost_micros": 0
+      }
+    }
+  },
+  "audit": {
+    "id": "evt_01J9Z4P4BS0M9P2EQ",
+    "type": "audit.policy_decision.denied",
+    "version": "0.1.0",
+    "occurred_at": "2026-01-01T00:00:02.000Z",
+    "source": "gateway",
+    "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "actor": {
+      "type": "agent",
+      "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "resource": {
+      "type": "provider",
+      "id": "prv_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "policy_decision_id": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+    "payload": {
+      "action": "gateway.provider.invoke",
+      "outcome": "denied"
+    }
+  },
+  "provider_capability": {
+    "provider": "fake-hosted",
+    "adapter_version": "0.1.0",
+    "supported_models": [
+      {
+        "model": "fake-deterministic-v1",
+        "context_window_tokens": 8192,
+        "supports_json_output": true,
+        "supports_tool_calls": false
+      }
+    ],
+    "supports_streaming": true,
+    "supports_tool_calls": false,
+    "credential_ref_kinds": [
+      "secret_ref"
+    ],
+    "routing_reason_codes": [
+      "primary_selected",
+      "fallback_after_retryable_error",
+      "fallback_after_timeout",
+      "policy_denied",
+      "capability_unsupported"
+    ],
+    "extension_points": [
+      "provider_metadata",
+      "routing_policy",
+      "stream_frame_metadata",
+      "usage_measurements",
+      "audit_payload"
+    ]
+  },
+  "normalized_error": {
+    "code": "rate_limited",
+    "message": "The fake provider simulated a rate limit.",
+    "retryable": true,
+    "upstream_status": 429,
+    "provider_error_class": "fake_rate_limit"
+  },
+  "extension_points": [
+    "provider_metadata",
+    "routing_policy",
+    "stream_frame_metadata",
+    "usage_measurements",
+    "audit_payload"
+  ]
+}

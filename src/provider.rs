@@ -1,8 +1,9 @@
 use crate::contracts::{
     EventActorRef, EventResourceRef, EventSource, FinishReason, ModelCapability, ModelResponse,
-    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, ScopedModelRequest,
-    StreamFrame, StreamFrameType, UsageEvent, UsageMeasurement, UsageMeasurements, UsagePayload,
-    UsageSubject, UsageSubjectType,
+    NormalizedError, NormalizedErrorCode, ProviderAdapterCapability, RoutingMetadata,
+    RoutingReasonCode, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
+    UsageMeasurement, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
+    GATEWAY_PROTOCOL_VERSION,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -46,6 +47,20 @@ impl ProviderAdapter for FakeProviderAdapter {
             supports_streaming: true,
             supports_tool_calls: false,
             credential_ref_kinds: vec![crate::contracts::CredentialRefKind::SecretRef],
+            routing_reason_codes: vec![
+                RoutingReasonCode::PrimarySelected,
+                RoutingReasonCode::FallbackAfterRetryableError,
+                RoutingReasonCode::FallbackAfterTimeout,
+                RoutingReasonCode::PolicyDenied,
+                RoutingReasonCode::CapabilityUnsupported,
+            ],
+            extension_points: vec![
+                crate::contracts::ContractExtensionPoint::ProviderMetadata,
+                crate::contracts::ContractExtensionPoint::RoutingPolicy,
+                crate::contracts::ContractExtensionPoint::StreamFrameMetadata,
+                crate::contracts::ContractExtensionPoint::UsageMeasurements,
+                crate::contracts::ContractExtensionPoint::AuditPayload,
+            ],
         }
     }
 
@@ -63,12 +78,15 @@ impl ProviderAdapter for FakeProviderAdapter {
         let usage = usage_for(request, &content);
 
         Ok(ModelResponse {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             provider: request.provider.clone(),
             model: request.model.clone(),
             content,
             finish_reason: FinishReason::Stop,
             usage,
+            routing: routing_metadata(request, RoutingReasonCode::PrimarySelected),
         })
     }
 
@@ -81,20 +99,32 @@ impl ProviderAdapter for FakeProviderAdapter {
         {
             return Ok(vec![
                 StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: 0,
                     frame_type: StreamFrameType::Start,
                     delta: None,
                     usage: None,
                     error: None,
+                    routing: Some(routing_metadata(
+                        request,
+                        RoutingReasonCode::PrimarySelected,
+                    )),
                 },
                 StreamFrame {
+                    protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                     request_id: request.request_id.clone(),
+                    correlation_id: request.correlation_id.clone(),
                     sequence: 1,
                     frame_type: StreamFrameType::Error,
                     delta: None,
                     usage: None,
                     error: Some(rate_limit_error()),
+                    routing: Some(routing_metadata(
+                        request,
+                        RoutingReasonCode::FallbackAfterRetryableError,
+                    )),
                 },
             ]);
         }
@@ -103,40 +133,58 @@ impl ProviderAdapter for FakeProviderAdapter {
         let usage = usage_for(request, &content);
         let words: Vec<&str> = content.split_whitespace().collect();
         let mut frames = vec![StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: 0,
             frame_type: StreamFrameType::Start,
             delta: None,
             usage: None,
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::PrimarySelected,
+            )),
         }];
 
         for (index, word) in words.iter().enumerate() {
             frames.push(StreamFrame {
+                protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
                 request_id: request.request_id.clone(),
+                correlation_id: request.correlation_id.clone(),
                 sequence: (index + 1) as u32,
                 frame_type: StreamFrameType::ContentDelta,
                 delta: Some((*word).to_string()),
                 usage: None,
                 error: None,
+                routing: None,
             });
         }
 
         frames.push(StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: (words.len() + 1) as u32,
             frame_type: StreamFrameType::UsageDelta,
             delta: None,
             usage: Some(usage.clone()),
             error: None,
+            routing: None,
         });
         frames.push(StreamFrame {
+            protocol_version: GATEWAY_PROTOCOL_VERSION.to_string(),
             request_id: request.request_id.clone(),
+            correlation_id: request.correlation_id.clone(),
             sequence: (words.len() + 2) as u32,
             frame_type: StreamFrameType::Final,
             delta: None,
             usage: Some(usage),
             error: None,
+            routing: Some(routing_metadata(
+                request,
+                RoutingReasonCode::PrimarySelected,
+            )),
         });
 
         Ok(frames)
@@ -207,6 +255,19 @@ fn usage_for(request: &ScopedModelRequest, content: &str) -> UsageMeasurement {
         output_tokens,
         total_tokens: input_tokens + output_tokens,
     }
+}
+
+fn routing_metadata(
+    request: &ScopedModelRequest,
+    reason_code: RoutingReasonCode,
+) -> RoutingMetadata {
+    request.routing.clone().unwrap_or_else(|| RoutingMetadata {
+        provider: request.provider.clone(),
+        model: request.model.clone(),
+        reason_code,
+        attempt: 1,
+        fallback_from_provider: None,
+    })
 }
 
 fn count_tokens(value: &str) -> u32 {

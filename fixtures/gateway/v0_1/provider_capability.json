@@ -13,5 +13,19 @@
   "supports_tool_calls": false,
   "credential_ref_kinds": [
     "secret_ref"
+  ],
+  "routing_reason_codes": [
+    "primary_selected",
+    "fallback_after_retryable_error",
+    "fallback_after_timeout",
+    "policy_denied",
+    "capability_unsupported"
+  ],
+  "extension_points": [
+    "provider_metadata",
+    "routing_policy",
+    "stream_frame_metadata",
+    "usage_measurements",
+    "audit_payload"
   ]
 }

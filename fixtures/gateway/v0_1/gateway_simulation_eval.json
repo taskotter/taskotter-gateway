@@ -101,7 +101,9 @@
       },
       "stream_frames": [
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_stream_success",
+          "correlation_id": "corr_sim_stream_success",
           "sequence": 0,
           "frame_type": "start",
           "delta": null,
@@ -109,7 +111,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_stream_success",
+          "correlation_id": "corr_sim_stream_success",
           "sequence": 1,
           "frame_type": "content_delta",
           "delta": "fake:fake-deterministic-v1:simulate",
@@ -117,7 +121,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_stream_success",
+          "correlation_id": "corr_sim_stream_success",
           "sequence": 2,
           "frame_type": "usage_delta",
           "delta": null,
@@ -129,7 +135,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_stream_success",
+          "correlation_id": "corr_sim_stream_success",
           "sequence": 3,
           "frame_type": "final",
           "delta": null,
@@ -346,7 +354,9 @@
       },
       "stream_frames": [
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_rate_limit",
+          "correlation_id": "corr_sim_rate_limit",
           "sequence": 0,
           "frame_type": "start",
           "delta": null,
@@ -354,7 +364,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_rate_limit",
+          "correlation_id": "corr_sim_rate_limit",
           "sequence": 1,
           "frame_type": "error",
           "delta": null,
@@ -467,7 +479,9 @@
       },
       "stream_frames": [
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_malformed_chunk",
+          "correlation_id": "corr_sim_malformed_chunk",
           "sequence": 0,
           "frame_type": "start",
           "delta": null,
@@ -475,7 +489,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_malformed_chunk",
+          "correlation_id": "corr_sim_malformed_chunk",
           "sequence": 1,
           "frame_type": "error",
           "delta": null,
@@ -588,7 +604,9 @@
       },
       "stream_frames": [
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_partial_stream",
+          "correlation_id": "corr_sim_partial_stream",
           "sequence": 0,
           "frame_type": "start",
           "delta": null,
@@ -596,7 +614,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_partial_stream",
+          "correlation_id": "corr_sim_partial_stream",
           "sequence": 1,
           "frame_type": "content_delta",
           "delta": "partial",
@@ -800,7 +820,9 @@
       },
       "stream_frames": [
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_cancel",
+          "correlation_id": "corr_sim_cancel",
           "sequence": 0,
           "frame_type": "start",
           "delta": null,
@@ -808,7 +830,9 @@
           "error": null
         },
         {
+          "protocol_version": "gateway.v0.1",
           "request_id": "req_sim_cancel",
+          "correlation_id": "corr_sim_cancel",
           "sequence": 1,
           "frame_type": "content_delta",
           "delta": "cancelled",

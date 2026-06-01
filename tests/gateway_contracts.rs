@@ -7,11 +7,11 @@ use taskotter_gateway::{
     adapters::ProviderKind,
     app,
     contracts::{
-        validate_gateway_protocol_version, AuditEvent, GatewayHealth, GatewayRegistration,
-        HealthStatus, McpHostingMode, NormalizedError, NormalizedErrorCode, PolicyInstruction,
-        ProviderAdapterCapability, RuntimeFeatureFlags, ScopedCredentialRef,
-        ScopedMcpSessionRequest, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
-        GATEWAY_PROTOCOL_VERSION,
+        validate_gateway_protocol_version, AlphaNormalizedContractSnapshot, AuditEvent,
+        GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode, NormalizedError,
+        NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability, RoutingReasonCode,
+        RuntimeFeatureFlags, ScopedCredentialRef, ScopedMcpSessionRequest, ScopedModelRequest,
+        StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
     },
     mcp::McpRuntimeHost,
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
@@ -168,6 +168,7 @@ fn fixtures_round_trip_and_validate_boundaries() {
     let frames: Vec<StreamFrame> = fixture("stream_frames");
     let usage: UsageEvent = fixture("usage_event");
     let audit: AuditEvent = fixture("audit_event");
+    let snapshot: AlphaNormalizedContractSnapshot = fixture("alpha_normalized_contract_snapshot");
     let hosted_mcp_usage: UsageEvent = fixture("hosted_mcp_denied_usage_event");
     let hosted_mcp_audit: AuditEvent = fixture("hosted_mcp_denied_audit_event");
     let error: NormalizedError = fixture("normalized_error");
@@ -180,8 +181,17 @@ fn fixtures_round_trip_and_validate_boundaries() {
     mcp_request.validate_boundary().unwrap();
     assert_eq!(capability.provider, "fake-hosted");
     assert!(capability.supports_streaming);
+    assert!(capability
+        .routing_reason_codes
+        .contains(&RoutingReasonCode::PrimarySelected));
     assert_eq!(health.status, HealthStatus::Ok);
     assert_eq!(frames.last().unwrap().frame_type, StreamFrameType::Final);
+    assert!(frames
+        .first()
+        .unwrap()
+        .routing
+        .as_ref()
+        .is_some_and(|routing| routing.reason_code == RoutingReasonCode::PrimarySelected));
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(usage.version, "0.1.0");
     assert_eq!(
@@ -228,6 +238,14 @@ fn fixtures_round_trip_and_validate_boundaries() {
         "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
     );
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
+    assert_eq!(snapshot.protocol_version, GATEWAY_PROTOCOL_VERSION);
+    assert_eq!(
+        snapshot.response.routing.reason_code,
+        RoutingReasonCode::PrimarySelected
+    );
+    assert!(snapshot
+        .extension_points
+        .contains(&taskotter_gateway::contracts::ContractExtensionPoint::UsageMeasurements));
 }
 
 #[test]
@@ -243,6 +261,12 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
         "fake:fake-deterministic-v1:summarize fixture contract"
     );
     assert_eq!(response.usage.input_tokens, 3);
+    assert_eq!(response.protocol_version, GATEWAY_PROTOCOL_VERSION);
+    assert_eq!(response.correlation_id, request.correlation_id);
+    assert_eq!(
+        response.routing.reason_code,
+        RoutingReasonCode::PrimarySelected
+    );
     assert!(response.usage.output_tokens > 0);
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(
@@ -478,6 +502,16 @@ fn contract_compatibility_matrix_declares_supported_versions() {
         .iter()
         .any(|version| version == GATEWAY_PROTOCOL_VERSION));
     assert!(event_versions.iter().any(|version| version == "0.1.0"));
+}
+
+#[test]
+fn alpha_snapshot_rejects_unknown_contract_fields() {
+    let mut snapshot: Value = fixture("alpha_normalized_contract_snapshot");
+    snapshot["response"]["unexpected_downstream_field"] = json!("must be modeled explicitly");
+
+    let error = serde_json::from_value::<AlphaNormalizedContractSnapshot>(snapshot).unwrap_err();
+
+    assert!(error.to_string().contains("unexpected_downstream_field"));
 }
 
 #[test]
