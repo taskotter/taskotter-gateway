@@ -136,6 +136,16 @@ pub fn validate_fallback(
 fn validate_attempt_boundary(
     request: &FallbackPolicyRequest,
 ) -> Result<(), Box<FallbackPolicyFailure>> {
+    if request.candidate.provider_kind == ProviderKind::LocalRunner
+        && !(request.attempt_kind == FallbackAttemptKind::RunnerLocal && request.allow_runner_local)
+    {
+        return Err(failure(
+            request,
+            "runner_local_fallback_not_allowed",
+            "Runner-local fallback requires an explicit runner-local attempt and policy allowance.",
+        ));
+    }
+
     match request.attempt_kind {
         FallbackAttemptKind::Retry => {
             if request.primary.provider_id == request.candidate.provider_id
@@ -192,11 +202,11 @@ fn validate_required_capabilities(
     request: &FallbackPolicyRequest,
 ) -> Result<(), Box<FallbackPolicyFailure>> {
     for capability in &request.required_capabilities {
-        if request.primary.supports(*capability) && !request.candidate.supports(*capability) {
+        if !request.candidate.supports(*capability) {
             return Err(failure(
                 request,
                 "required_capability_dropped",
-                "Fallback candidate drops a required provider capability.",
+                "Fallback candidate does not satisfy a required provider capability.",
             ));
         }
     }

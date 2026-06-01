@@ -282,6 +282,55 @@ fn fallback_policy_allows_runner_local_only_with_explicit_scope() {
 }
 
 #[test]
+fn fallback_policy_rejects_local_runner_candidate_in_same_provider_attempt() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let runner = fallback_candidate("runner_local", ProviderKind::LocalRunner, "provider_a");
+    let denied = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        runner.clone(),
+    );
+
+    let failure = validate_fallback(&denied).unwrap_err();
+
+    assert_eq!(failure.class, "runner_local_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_local_runner_candidate_in_retry_attempt() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let runner = fallback_candidate("provider_a", ProviderKind::LocalRunner, "provider_a");
+    let denied =
+        fallback_policy_request(FallbackAttemptKind::Retry, primary.clone(), runner.clone());
+
+    let failure = validate_fallback(&denied).unwrap_err();
+
+    assert_eq!(failure.class, "runner_local_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
 fn fallback_policy_rejects_required_capability_drop_as_normalized_failure() {
     let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
     let mut candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
@@ -312,6 +361,44 @@ fn fallback_policy_rejects_required_capability_drop_as_normalized_failure() {
             "secret_ref_sensitive_provider_credential",
         ],
     );
+}
+
+#[test]
+fn fallback_policy_requires_candidate_to_directly_satisfy_required_capabilities() {
+    let mut primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    primary.supports_json_output = false;
+    let mut candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    candidate.supports_json_output = false;
+    let request = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+
+    let failure = validate_fallback(&request).unwrap_err();
+
+    assert_eq!(failure.class, "required_capability_dropped");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_allows_required_capability_when_primary_metadata_is_missing_but_candidate_has_it(
+) {
+    let mut primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    primary.supports_json_output = false;
+    let candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    let request = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+
+    let decision = validate_fallback(&request).unwrap();
+
+    assert!(decision.allowed);
+    assert_eq!(decision.selected_provider, "provider_b");
 }
 
 #[test]
