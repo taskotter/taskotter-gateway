@@ -16,7 +16,7 @@ use crate::{
     },
     mcp::{resolve_endpoint, McpEndpoint, McpResolution},
     policy::{PolicyCheck, PolicyEngine, PolicySubject},
-    usage::{RoutingReasonCode, UsageAttemptStatus, UsageAuditEventV1},
+    usage::{GatewayRelayAuditEventV1, RoutingReasonCode, UsageAttemptStatus},
 };
 
 #[derive(Clone)]
@@ -50,7 +50,7 @@ pub struct AiRelayRequest {
 #[derive(Debug, Serialize)]
 pub struct AiRelayResponse {
     pub response: ProviderResponse,
-    pub usage_audit_event: UsageAuditEventV1,
+    pub gateway_relay_audit_event: GatewayRelayAuditEventV1,
 }
 
 pub async fn relay_ai_request(
@@ -65,7 +65,7 @@ pub async fn relay_ai_request(
     let decision = state.policy.evaluate(policy_check).await;
 
     if !decision.allowed {
-        let usage_audit_event = UsageAuditEventV1::with_reason_code(
+        let gateway_relay_audit_event = GatewayRelayAuditEventV1::with_reason_code(
             payload.request_id,
             payload.subject,
             payload.provider,
@@ -73,9 +73,8 @@ pub async fn relay_ai_request(
             UsageAttemptStatus::Denied,
             RoutingReasonCode::PolicyDenied,
         );
-        return Err(
-            GatewayError::policy_denied(decision.reason).with_usage_event(usage_audit_event)
-        );
+        return Err(GatewayError::policy_denied(decision.reason)
+            .with_gateway_relay_audit_event(gateway_relay_audit_event));
     }
 
     let normalized = NormalizedProviderRequest {
@@ -88,7 +87,7 @@ pub async fn relay_ai_request(
     let provider_response = match state.providers.route(normalized, decision.clone()).await {
         Ok(response) => response,
         Err(error) => {
-            let usage_audit_event = UsageAuditEventV1::with_reason_code(
+            let gateway_relay_audit_event = GatewayRelayAuditEventV1::with_reason_code(
                 payload.request_id,
                 payload.subject,
                 payload.provider,
@@ -96,10 +95,10 @@ pub async fn relay_ai_request(
                 error.usage_status(),
                 error.routing_reason_code(),
             );
-            return Err(error.with_usage_event(usage_audit_event));
+            return Err(error.with_gateway_relay_audit_event(gateway_relay_audit_event));
         }
     };
-    let usage_audit_event = UsageAuditEventV1::with_reason_code(
+    let gateway_relay_audit_event = GatewayRelayAuditEventV1::with_reason_code(
         payload.request_id,
         payload.subject,
         payload.provider,
@@ -110,7 +109,7 @@ pub async fn relay_ai_request(
 
     Ok(Json(AiRelayResponse {
         response: provider_response,
-        usage_audit_event,
+        gateway_relay_audit_event,
     }))
 }
 
@@ -123,13 +122,13 @@ pub enum GatewayError {
     #[error("{message}")]
     PolicyDenied {
         message: String,
-        usage_audit_event: Option<UsageAuditEventV1>,
+        gateway_relay_audit_event: Option<GatewayRelayAuditEventV1>,
     },
     #[error("{message}")]
     Timeout {
         message: String,
         timeout_ms: Option<u64>,
-        usage_audit_event: Option<UsageAuditEventV1>,
+        gateway_relay_audit_event: Option<GatewayRelayAuditEventV1>,
     },
 }
 
@@ -137,7 +136,7 @@ impl GatewayError {
     pub fn policy_denied(reason: Option<String>) -> Self {
         Self::PolicyDenied {
             message: reason.unwrap_or_else(|| "request denied by policy".to_string()),
-            usage_audit_event: None,
+            gateway_relay_audit_event: None,
         }
     }
 
@@ -145,7 +144,7 @@ impl GatewayError {
         Self::Timeout {
             message: message.into(),
             timeout_ms,
-            usage_audit_event: None,
+            gateway_relay_audit_event: None,
         }
     }
 
@@ -163,11 +162,14 @@ impl GatewayError {
         }
     }
 
-    fn with_usage_event(self, usage_audit_event: UsageAuditEventV1) -> Self {
+    fn with_gateway_relay_audit_event(
+        self,
+        gateway_relay_audit_event: GatewayRelayAuditEventV1,
+    ) -> Self {
         match self {
             GatewayError::PolicyDenied { message, .. } => GatewayError::PolicyDenied {
                 message,
-                usage_audit_event: Some(usage_audit_event),
+                gateway_relay_audit_event: Some(gateway_relay_audit_event),
             },
             GatewayError::Timeout {
                 message,
@@ -176,7 +178,7 @@ impl GatewayError {
             } => GatewayError::Timeout {
                 message,
                 timeout_ms,
-                usage_audit_event: Some(usage_audit_event),
+                gateway_relay_audit_event: Some(gateway_relay_audit_event),
             },
         }
     }
@@ -186,7 +188,7 @@ impl GatewayError {
 pub struct ErrorBody {
     pub error: ErrorShape,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage_audit_event: Option<UsageAuditEventV1>,
+    pub gateway_relay_audit_event: Option<GatewayRelayAuditEventV1>,
 }
 
 #[derive(Debug, Serialize)]
@@ -200,10 +202,10 @@ pub struct ErrorShape {
 
 impl IntoResponse for GatewayError {
     fn into_response(self) -> Response {
-        let (status, error, usage_audit_event) = match self {
+        let (status, error, gateway_relay_audit_event) = match self {
             GatewayError::PolicyDenied {
                 message,
-                usage_audit_event,
+                gateway_relay_audit_event,
             } => (
                 StatusCode::FORBIDDEN,
                 ErrorShape {
@@ -212,12 +214,12 @@ impl IntoResponse for GatewayError {
                     retryable: false,
                     timeout_ms: None,
                 },
-                usage_audit_event,
+                gateway_relay_audit_event,
             ),
             GatewayError::Timeout {
                 message,
                 timeout_ms,
-                usage_audit_event,
+                gateway_relay_audit_event,
             } => (
                 StatusCode::GATEWAY_TIMEOUT,
                 ErrorShape {
@@ -226,7 +228,7 @@ impl IntoResponse for GatewayError {
                     retryable: true,
                     timeout_ms,
                 },
-                usage_audit_event,
+                gateway_relay_audit_event,
             ),
         };
 
@@ -234,7 +236,7 @@ impl IntoResponse for GatewayError {
             status,
             Json(ErrorBody {
                 error,
-                usage_audit_event,
+                gateway_relay_audit_event,
             }),
         )
             .into_response()

@@ -19,7 +19,7 @@ The server listens on `127.0.0.1:8080` by default. Override with `TASKOTTER_GATE
 
 ## MVP Contracts
 
-- `POST /v1/ai/relay` accepts a normalized provider request and returns a stub relay response with a `usage_audit_event.v1` payload.
+- `POST /v1/ai/relay` accepts a normalized provider request and returns a stub relay response with a gateway-local `gateway_relay_audit.v1` payload.
 - `POST /v1/mcp/resolve` accepts an MCP endpoint model and returns the policy-visible lifecycle mode.
 - `GET /healthz` returns service health.
 - Versioned gateway protocol structs and JSON fixtures validate the gateway/control-plane contract.
@@ -30,9 +30,19 @@ Policy decisions use the control-plane canonical shape:
 `max_cost_micro_usd`. The gateway treats `allowed` as authoritative and copies
 `decision_id` into every usage/audit event.
 
-`usage_audit_event.v1` is emitted for succeeded, denied, and timeout relay
-attempts. The event includes `request_id`, optional `correlation_id`, subject,
-provider, `decision_id`, `status`, token counts, and estimated cost in micro-USD.
+`gateway_relay_audit.v1` is emitted in relay responses for succeeded, denied,
+and timeout attempts. This is a gateway-local response audit summary, not the
+control-plane `/v1/usage/events` ingestion event. It includes `request_id`,
+optional `correlation_id`, subject, provider, `decision_id`,
+`routing_reason_code`, `status`, token counts, and estimated cost in micro-USD.
+The bounded `routing_reason_code` values are `primary_selected`,
+`fallback_selected`, `policy_denied`, `quota_denied`, `provider_timeout`,
+`provider_error`, and `cancelled`.
+
+Durable control-plane usage ingestion remains owned by `taskotter/taskotter`
+OpenAPI and uses the canonical `UsageEvent` envelope. Gateway-local relay audit
+summaries must not be sent to `/v1/usage/events` without a mapper that produces
+the control-plane envelope.
 
 ## Deterministic Simulation Fixtures
 
@@ -60,9 +70,9 @@ live provider keys, hosted MCP runtime, private runner access, or paid resources
 - Provider adapters are stubs. Hosted providers, OpenAI-compatible endpoints, local runner endpoints, and future adapters share the same routing contract but do not call external services.
 - Streaming relay is represented by request/response contract fields only. No SSE/WebSocket relay is implemented yet.
 - The policy hook is local and deterministic for tests. Production policy decisions must come from `taskotter/taskotter` control-plane dispatch or scoped policy decisions.
-- Usage and audit events are serialized locally and match the control-plane
-  `/v1/usage/events` ingestion schema, but the gateway does not deliver them to a
-  ledger yet.
+- Gateway-local `gateway_relay_audit.v1` response summaries are intentionally
+  separate from the control-plane `/v1/usage/events` ingestion schema. The
+  gateway does not deliver usage events to a ledger yet.
 - MCP lifecycle states are modeled but no process supervisor, external SSE client, runner dispatch, or managed hosting runtime is started.
 
 ## Cross-Repo Dependencies

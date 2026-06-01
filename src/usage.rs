@@ -54,7 +54,7 @@ pub enum UsageAttemptStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageAuditEventV1 {
+pub struct GatewayRelayAuditEventV1 {
     pub schema_version: String,
     pub event_id: Uuid,
     pub request_id: Uuid,
@@ -70,7 +70,7 @@ pub struct UsageAuditEventV1 {
     pub estimated_cost_micro_usd: u64,
 }
 
-impl UsageAuditEventV1 {
+impl GatewayRelayAuditEventV1 {
     pub fn new(
         request_id: Uuid,
         subject: PolicySubject,
@@ -105,7 +105,7 @@ impl UsageAuditEventV1 {
         routing_reason_code: RoutingReasonCode,
     ) -> Self {
         Self {
-            schema_version: "usage_audit_event.v1".to_string(),
+            schema_version: "gateway_relay_audit.v1".to_string(),
             event_id: Uuid::new_v4(),
             request_id,
             correlation_id: None,
