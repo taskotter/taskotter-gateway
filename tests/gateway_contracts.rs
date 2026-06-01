@@ -570,3 +570,58 @@ fn gateway_simulation_eval_fixture_covers_provider_and_mcp_paths() {
     assert!(report.quota_denial > 0);
     assert!(report.mcp_lifecycle > 0);
 }
+
+#[test]
+fn alpha_routing_reuse_fixture_names_are_stable() {
+    let fixture: GatewaySimulationFixture = fixture("gateway_simulation_eval");
+    let provider_cases: std::collections::BTreeMap<_, _> = fixture
+        .provider_cases
+        .iter()
+        .map(|case| (case.id.as_str(), case))
+        .collect();
+    let mcp_cases: std::collections::BTreeMap<_, _> = fixture
+        .mcp_cases
+        .iter()
+        .map(|case| (case.id.as_str(), case))
+        .collect();
+
+    let expected_provider_case_ids = [
+        "provider_streaming_success_primary",
+        "provider_non_streaming_success_fallback",
+        "provider_rate_limit_error",
+        "provider_malformed_stream_chunk",
+        "provider_partial_stream",
+        "provider_timeout",
+        "provider_cancellation",
+        "provider_policy_denial",
+        "provider_quota_denial",
+    ];
+    for case_id in expected_provider_case_ids {
+        assert!(
+            provider_cases.contains_key(case_id),
+            "missing reusable provider fixture case: {case_id}"
+        );
+    }
+
+    let fallback_case = provider_cases["provider_non_streaming_success_fallback"];
+    assert_eq!(fallback_case.route.primary_provider, "fake-hosted-primary");
+    assert_eq!(
+        fallback_case.route.fallback_provider.as_deref(),
+        Some("fake-hosted-fallback")
+    );
+    assert_eq!(
+        fallback_case.route.selected_provider,
+        "fake-hosted-fallback"
+    );
+    assert!(fallback_case.route.fallback_used);
+    assert_eq!(
+        fallback_case.route.reason.as_deref(),
+        Some("primary_rate_limited")
+    );
+
+    let primary_case = provider_cases["provider_streaming_success_primary"];
+    assert_eq!(primary_case.route.selected_provider, "fake-hosted");
+    assert!(!primary_case.route.fallback_used);
+
+    assert!(mcp_cases.contains_key("mcp_gateway_hosted_lifecycle_tool_call"));
+}
