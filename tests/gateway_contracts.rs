@@ -86,6 +86,22 @@ fn fixtures_round_trip_and_validate_boundaries() {
         hosted_mcp_audit.payload.feature_flag.as_deref(),
         Some("gateway.hosted_mcp_billing.enabled")
     );
+    assert_eq!(
+        hosted_mcp_audit.payload.outcome,
+        taskotter_gateway::contracts::AuditOutcome::Denied
+    );
+    assert_eq!(
+        hosted_mcp_audit.payload.runtime_capability.as_deref(),
+        Some("gateway.hosted_mcp_billing")
+    );
+    assert_eq!(
+        hosted_mcp_audit.payload.approval_ref.as_deref(),
+        Some("approval_required_before_paid_runtime")
+    );
+    assert_eq!(
+        hosted_mcp_audit.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
 }
 
@@ -219,6 +235,26 @@ fn mcp_host_health_and_session_placeholder_are_verified() {
         Some("gateway.hosted_mcp_billing")
     );
     assert_eq!(audit.payload.action, "gateway.mcp.session.open");
+    assert_eq!(
+        audit.payload.outcome,
+        taskotter_gateway::contracts::AuditOutcome::Denied
+    );
+    assert_eq!(
+        audit.payload.runtime_capability.as_deref(),
+        Some("gateway.hosted_mcp_billing")
+    );
+    assert_eq!(
+        audit.payload.feature_flag.as_deref(),
+        Some("gateway.hosted_mcp_billing.enabled")
+    );
+    assert_eq!(
+        audit.payload.approval_ref.as_deref(),
+        Some("policy_decision_ref")
+    );
+    assert_eq!(
+        audit.policy_decision_id,
+        "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
 }
 
 #[test]
@@ -261,6 +297,22 @@ fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
     assert_eq!(
         audit.policy_decision_id,
         "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    );
+    assert_eq!(
+        audit.payload.outcome,
+        taskotter_gateway::contracts::AuditOutcome::Denied
+    );
+    assert_eq!(
+        audit.payload.runtime_capability.as_deref(),
+        Some("gateway.hosted_mcp_billing")
+    );
+    assert_eq!(
+        audit.payload.feature_flag.as_deref(),
+        Some("gateway.hosted_mcp_billing.enabled")
+    );
+    assert_eq!(
+        audit.payload.approval_ref.as_deref(),
+        Some("policy_decision_ref")
     );
     assert!(!usage.policy_decision_id.starts_with("gwi_"));
     assert!(!audit.policy_decision_id.starts_with("gwi_"));

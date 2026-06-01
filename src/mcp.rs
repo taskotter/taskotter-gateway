@@ -141,7 +141,7 @@ impl McpRuntimeHost {
             policy_decision_id,
             payload: AuditPayload {
                 action: "gateway.mcp.session.open".to_string(),
-                outcome: AuditOutcome::Allowed,
+                outcome: AuditOutcome::Denied,
                 runtime_capability: Some(
                     HighRiskGatewayCapability::HostedMcpBilling
                         .contract_name()
