@@ -291,6 +291,40 @@ fn fake_provider_rejects_requests_outside_capability_metadata() {
 }
 
 #[test]
+fn fake_provider_complete_rejects_unsupported_credential_ref_kind() {
+    let adapter = FakeProviderAdapter::new();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.credential_ref.kind =
+        taskotter_gateway::contracts::CredentialRefKind::RunnerJobCredentialRef;
+
+    let error = adapter.complete(&request).unwrap_err();
+
+    assert_eq!(error.code, NormalizedErrorCode::PolicyDenied);
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("provider_credential_ref_kind_not_supported")
+    );
+}
+
+#[test]
+fn fake_provider_stream_rejects_unsupported_credential_ref_kind() {
+    let adapter = FakeProviderAdapter::new();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.credential_ref.kind =
+        taskotter_gateway::contracts::CredentialRefKind::ExternalMcpCredentialRef;
+
+    let error_frame = adapter
+        .stream(&request)
+        .expect_err("unsupported credential ref kind must fail before streaming");
+
+    assert_eq!(error_frame.code, NormalizedErrorCode::PolicyDenied);
+    assert_eq!(
+        error_frame.provider_error_class.as_deref(),
+        Some("provider_credential_ref_kind_not_supported")
+    );
+}
+
+#[test]
 fn signed_dispatch_provider_event_keeps_policy_decision_lineage_separate() {
     let adapter = FakeProviderAdapter::new();
     let request: ScopedModelRequest = fixture("scoped_model_signed_request");

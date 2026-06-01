@@ -109,6 +109,16 @@ impl ProviderAdapterCapability {
             ));
         }
 
+        if !self
+            .credential_ref_kinds
+            .contains(&request.credential_ref.kind)
+        {
+            return Err(NormalizedError::policy_denied(
+                "provider_credential_ref_kind_not_supported",
+                "Provider capability does not allow this credential reference kind.",
+            ));
+        }
+
         self.supported_models
             .iter()
             .find(|model| model.model == request.model)
