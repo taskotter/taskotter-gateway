@@ -323,12 +323,24 @@ fn openai_compatible_adapter_builds_request_without_raw_credentials() {
     assert_eq!(provider_request.body["model"], request.model);
     assert_eq!(provider_request.body["stream"], request.stream);
     assert_eq!(
-        provider_request.body["metadata"]["gateway_request_id"],
-        request.request_id
-    );
-    assert_eq!(
         provider_request.body["stream_options"]["include_usage"],
         true
+    );
+    assert!(provider_request.body.get("metadata").is_none());
+    assert!(
+        !provider_request
+            .body
+            .to_string()
+            .contains(&request.request_id)
+            && !provider_request
+                .body
+                .to_string()
+                .contains(&request.correlation_id)
+            && !provider_request
+                .body
+                .to_string()
+                .contains(&request.working_group_id),
+        "provider body must not expose internal request/correlation/workspace lineage"
     );
     assert!(
         !provider_request
@@ -438,9 +450,79 @@ fn openai_compatible_adapter_maps_stream_and_provider_errors() {
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
     assert_eq!(error.upstream_status, Some(429));
     assert_eq!(
-        error.provider_error_class.as_deref(),
-        Some("rate_limit_error")
+        error.message,
+        "OpenAI-compatible provider rate limited the request."
     );
+    assert_eq!(error.provider_error_class.as_deref(), Some("rate_limited"));
+}
+
+#[test]
+fn openai_compatible_provider_errors_are_sanitized() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let request: ScopedModelRequest = fixture("scoped_model_request");
+    let sensitive_error = serde_json::json!({
+        "error": {
+            "message": "project proj_internal_123 saw prompt token sk-test-secret for wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+            "type": "rate_limit_error",
+            "code": "acct_internal_456"
+        }
+    });
+
+    let error = adapter
+        .complete_from_response(
+            &request,
+            OpenAiCompatibleHttpResponse {
+                status: 429,
+                body: sensitive_error,
+            },
+        )
+        .unwrap_err();
+    let serialized = serde_json::to_string(&error).unwrap();
+
+    assert_eq!(error.code, NormalizedErrorCode::RateLimited);
+    assert_eq!(
+        error.message,
+        "OpenAI-compatible provider rate limited the request."
+    );
+    assert_eq!(error.provider_error_class.as_deref(), Some("rate_limited"));
+    assert!(!serialized.contains("proj_internal_123"));
+    assert!(!serialized.contains("sk-test-secret"));
+    assert!(!serialized.contains("wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"));
+    assert!(!serialized.contains("acct_internal_456"));
+}
+
+#[test]
+fn openai_compatible_stream_errors_are_sanitized() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.stream = true;
+    let events = vec![OpenAiCompatibleStreamEvent {
+        choices: vec![],
+        usage: None,
+        error: Some(serde_json::json!({
+            "message": "bearer token leaked for corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+            "type": "server_error",
+            "code": "runner_secret_ref_123"
+        })),
+        status: Some(500),
+    }];
+
+    let frames = adapter.stream_from_events(&request, &events).unwrap();
+    let error = frames.last().unwrap().error.as_ref().unwrap();
+    let serialized = serde_json::to_string(error).unwrap();
+
+    assert_eq!(error.code, NormalizedErrorCode::UpstreamUnavailable);
+    assert_eq!(
+        error.message,
+        "OpenAI-compatible provider is temporarily unavailable."
+    );
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("upstream_error")
+    );
+    assert!(!serialized.contains("bearer token"));
+    assert!(!serialized.contains("corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"));
+    assert!(!serialized.contains("runner_secret_ref_123"));
 }
 
 #[test]

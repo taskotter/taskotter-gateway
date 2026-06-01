@@ -82,11 +82,6 @@ impl OpenAiCompatibleProviderAdapter {
                 }))
                 .collect::<Vec<_>>(),
             "stream": request.stream,
-            "metadata": {
-                "gateway_request_id": request.request_id,
-                "gateway_correlation_id": request.correlation_id,
-                "working_group_id": request.working_group_id,
-            },
         });
 
         if request.stream {
@@ -697,31 +692,57 @@ fn openai_finish_reason(value: &str) -> FinishReason {
 
 fn normalize_openai_error(status: u16, body: &Value) -> NormalizedError {
     let error = body.get("error").unwrap_or(body);
-    let message = error
-        .get("message")
-        .and_then(Value::as_str)
-        .unwrap_or("OpenAI-compatible provider returned an error.")
-        .to_string();
-    let provider_error_class = error
-        .get("type")
-        .or_else(|| error.get("code"))
-        .and_then(Value::as_str)
-        .unwrap_or("openai_compatible_error")
-        .to_string();
     let code = match status {
         408 | 504 => NormalizedErrorCode::UpstreamTimeout,
         429 => NormalizedErrorCode::RateLimited,
         500..=599 => NormalizedErrorCode::UpstreamUnavailable,
         _ => NormalizedErrorCode::MalformedUpstreamResponse,
     };
+    let message = openai_error_message(&code).to_string();
+    let provider_error_class = allowlisted_openai_error_class(status, error);
 
     NormalizedError {
         code,
         message,
         retryable: matches!(status, 408 | 429 | 500..=599),
         upstream_status: Some(status),
-        provider_error_class: Some(provider_error_class),
+        provider_error_class,
     }
+}
+
+fn openai_error_message(code: &NormalizedErrorCode) -> &'static str {
+    match code {
+        NormalizedErrorCode::RateLimited => "OpenAI-compatible provider rate limited the request.",
+        NormalizedErrorCode::UpstreamTimeout => "OpenAI-compatible provider timed out.",
+        NormalizedErrorCode::UpstreamUnavailable => {
+            "OpenAI-compatible provider is temporarily unavailable."
+        }
+        _ => "OpenAI-compatible provider returned an unsuccessful response.",
+    }
+}
+
+fn allowlisted_openai_error_class(status: u16, error: &Value) -> Option<String> {
+    let raw_class = error
+        .get("type")
+        .or_else(|| error.get("code"))
+        .and_then(Value::as_str);
+
+    let class = match raw_class {
+        Some("rate_limit_error" | "rate_limit_exceeded") => "rate_limited",
+        Some("insufficient_quota") => "quota_exhausted",
+        Some("invalid_request_error") => "invalid_request",
+        Some("authentication_error") => "authentication_failed",
+        Some("permission_error") => "permission_denied",
+        Some("server_error") => "upstream_error",
+        _ => match status {
+            408 | 504 => "upstream_timeout",
+            429 => "rate_limited",
+            500..=599 => "upstream_error",
+            _ => "unsuccessful_response",
+        },
+    };
+
+    Some(class.to_string())
 }
 
 fn malformed_response() -> NormalizedError {
