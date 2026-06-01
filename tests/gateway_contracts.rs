@@ -22,6 +22,7 @@ use taskotter_gateway::{
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
     provider::{FakeProviderAdapter, ProviderAdapter},
     simulator::GatewaySimulationFixture,
+    usage::UsageAuditEventV1,
 };
 use tower::ServiceExt;
 
@@ -299,6 +300,49 @@ async fn usage_audit_event_idempotency_key_is_stable_for_replayed_request() {
     assert_eq!(
         first_body["usage_audit_event"]["idempotency_key"],
         "usage:00000000-0000-0000-0000-000000000557"
+    );
+}
+
+#[tokio::test]
+async fn runtime_usage_audit_event_projects_to_control_plane_envelopes() {
+    let mut payload = bound_relay_payload();
+    payload["messages"][0]["content"] = json!("simulate:mid_stream_quota");
+    let (status, body) = post_json("/v1/ai/relay", payload).await;
+
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+    let runtime_event: UsageAuditEventV1 =
+        serde_json::from_value(body["usage_audit_event"].clone()).unwrap();
+    let usage_event = runtime_event.to_usage_event();
+    let audit_event = runtime_event.to_audit_event();
+
+    let usage_value = serde_json::to_value(&usage_event).unwrap();
+    let audit_value = serde_json::to_value(&audit_event).unwrap();
+    let usage_round_trip: UsageEvent = serde_json::from_value(usage_value).unwrap();
+    let audit_round_trip: AuditEvent = serde_json::from_value(audit_value).unwrap();
+
+    assert_eq!(
+        usage_round_trip.idempotency_key,
+        runtime_event.idempotency_key
+    );
+    assert_eq!(
+        usage_round_trip.source,
+        taskotter_gateway::contracts::EventSource::Gateway
+    );
+    assert_eq!(
+        usage_round_trip.policy_decision_id,
+        runtime_event.decision_id
+    );
+    assert_eq!(
+        audit_round_trip.policy_decision_id,
+        runtime_event.decision_id
+    );
+    assert_eq!(
+        audit_round_trip.payload.outcome,
+        taskotter_gateway::contracts::AuditOutcome::Denied
+    );
+    assert_eq!(
+        audit_round_trip.payload.feature_flag.as_deref(),
+        Some("gateway.provider_routing.enabled")
     );
 }
 

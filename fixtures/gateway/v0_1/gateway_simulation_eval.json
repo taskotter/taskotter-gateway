@@ -954,7 +954,8 @@
       "outcome": {
         "kind": "quota_denial",
         "decision_id": "poldec_sim_quota_denial",
-        "max_cost_micro_usd": 0
+        "max_cost_micro_usd": 0,
+        "expected_status": "quota_denied"
       },
       "usage_event": {
         "id": "evt_sim_quota_denial_usage",

@@ -149,8 +149,18 @@ impl ProviderSimulationCase {
                 validate_decision_id(&self.id, decision_id, &self.usage_event)?;
                 report.policy_denial += 1;
             }
-            ProviderSimulationOutcome::QuotaDenial { decision_id, .. } => {
+            ProviderSimulationOutcome::QuotaDenial {
+                decision_id,
+                expected_status,
+                ..
+            } => {
                 validate_decision_id(&self.id, decision_id, &self.usage_event)?;
+                if expected_status.as_deref() != Some("quota_denied") {
+                    return Err(SimulationError::new(
+                        "quota_denial_status_missing",
+                        format!("{} quota denial must declare expected_status", self.id),
+                    ));
+                }
                 report.quota_denial += 1;
             }
         }
@@ -230,6 +240,8 @@ pub enum ProviderSimulationOutcome {
     QuotaDenial {
         decision_id: String,
         max_cost_micro_usd: u64,
+        #[serde(default)]
+        expected_status: Option<String>,
     },
 }
 
