@@ -7,14 +7,26 @@ use taskotter_gateway::{
     adapters::ProviderKind,
     app,
     contracts::{
-        validate_gateway_protocol_version, AlphaNormalizedContractSnapshot, AuditEvent,
-        GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode, NormalizedError,
-        NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability, RouteType,
-        RoutingReasonCode, RuntimeFeatureFlags, ScopedCredentialRef, ScopedMcpSessionRequest,
-        ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
+        validate_gateway_protocol_version, ActorRef, ActorType, AlphaNormalizedContractSnapshot,
+        AuditEvent, AuditOutcome, GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode,
+        NormalizedError, NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability,
+        ProviderCapabilityKind, RouteType, RoutingReasonCode, RuntimeFeatureFlags,
+        ScopedCredentialRef, ScopedMcpSessionRequest, ScopedModelRequest, StreamFrame,
+        StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
+    },
+    fallback::{
+        validate_fallback, FallbackAttemptKind, FallbackPolicyFailure, FallbackPolicyLimits,
+        FallbackPolicyRequest, FallbackProviderCandidate, RequiredProviderCapability,
+        RoutingReasonCode as FallbackRoutingReasonCode,
     },
     mcp::McpRuntimeHost,
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
+    metrics::{
+        fallback_denial_metrics, metric_labels_are_bounded, provider_error_metric,
+        provider_success_metrics, stream_start_latency_metric, usage_event_delivery_lag_metric,
+        FALLBACK_COUNT, POLICY_DENIAL_COUNT, PROVIDER_ERROR_COUNT, PROVIDER_LATENCY_MS,
+        STREAM_START_LATENCY_MS, USAGE_EVENT_DELIVERY_LAG_MS,
+    },
     provider::{FakeProviderAdapter, ProviderAdapter},
     provider::{
         OpenAiCompatibleHttpResponse, OpenAiCompatibleProviderAdapter, OpenAiCompatibleStreamEvent,
@@ -63,6 +75,80 @@ fn relay_payload(provider_id: &str) -> Value {
         ],
         "stream": true
     })
+}
+
+fn fallback_candidate(
+    provider_id: &str,
+    provider_kind: ProviderKind,
+    provider_family: &str,
+) -> FallbackProviderCandidate {
+    FallbackProviderCandidate {
+        provider_id: provider_id.to_string(),
+        provider_kind,
+        provider_family: provider_family.to_string(),
+        model: "test-model".to_string(),
+        region: "us".to_string(),
+        data_residency: "us".to_string(),
+        credential_scope: "wg_1/provider/fallback/secret_ref_sensitive_provider_credential"
+            .to_string(),
+        supports_streaming: true,
+        supports_json_output: true,
+        supports_tool_calls: false,
+    }
+}
+
+fn fallback_policy_request(
+    attempt_kind: FallbackAttemptKind,
+    primary: FallbackProviderCandidate,
+    candidate: FallbackProviderCandidate,
+) -> FallbackPolicyRequest {
+    FallbackPolicyRequest {
+        request_id: "req_fallback_policy".to_string(),
+        correlation_id: "corr_fallback_policy".to_string(),
+        working_group_id: "wg_1".to_string(),
+        actor: ActorRef {
+            actor_type: ActorType::Agent,
+            id: "agent_1".to_string(),
+        },
+        policy_decision_id: "poldec_fallback_policy".to_string(),
+        attempt_kind,
+        routing_reason: FallbackRoutingReasonCode::PrimaryRateLimited,
+        primary,
+        candidate,
+        required_capabilities: vec![
+            RequiredProviderCapability::Streaming,
+            RequiredProviderCapability::JsonOutput,
+        ],
+        original_limits: FallbackPolicyLimits {
+            max_tokens: Some(8192),
+            max_cost_micro_usd: Some(50_000),
+        },
+        candidate_limits: FallbackPolicyLimits {
+            max_tokens: Some(8192),
+            max_cost_micro_usd: Some(50_000),
+        },
+        allow_cross_provider: false,
+        allow_runner_local: false,
+    }
+}
+
+fn assert_denial_events_do_not_expose_values(
+    failure: &FallbackPolicyFailure,
+    prohibited_values: &[&str],
+) {
+    let usage = serde_json::to_string(&failure.usage_event).unwrap();
+    let audit = serde_json::to_string(&failure.audit_event).unwrap();
+
+    for prohibited in prohibited_values {
+        assert!(
+            !usage.contains(prohibited),
+            "usage event exposed prohibited value: {prohibited}"
+        );
+        assert!(
+            !audit.contains(prohibited),
+            "audit event exposed prohibited value: {prohibited}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -144,6 +230,365 @@ async fn provider_timeout_has_stable_error_shape() {
     assert_eq!(
         body["gateway_relay_audit_event"]["routing_reason_code"],
         "provider_timeout"
+    );
+}
+
+#[test]
+fn fallback_policy_allows_retry_and_same_provider_without_widening_scope() {
+    let primary = fallback_candidate("provider_primary", ProviderKind::Hosted, "provider_family");
+    let retry =
+        fallback_policy_request(FallbackAttemptKind::Retry, primary.clone(), primary.clone());
+    let same_provider = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        fallback_candidate(
+            "provider_secondary",
+            ProviderKind::Hosted,
+            "provider_family",
+        ),
+    );
+
+    let retry_decision = validate_fallback(&retry).unwrap();
+    let same_provider_decision = validate_fallback(&same_provider).unwrap();
+
+    assert!(retry_decision.allowed);
+    assert_eq!(retry_decision.selected_provider, "provider_primary");
+    assert!(same_provider_decision.allowed);
+    assert_eq!(
+        same_provider_decision.selected_provider,
+        "provider_secondary"
+    );
+}
+
+#[test]
+fn fallback_policy_requires_explicit_cross_provider_allowance() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let candidate = fallback_candidate("provider_b", ProviderKind::OpenAiCompatible, "provider_b");
+    let denied = fallback_policy_request(
+        FallbackAttemptKind::CrossProvider,
+        primary.clone(),
+        candidate.clone(),
+    );
+    let mut allowed = denied.clone();
+    allowed.allow_cross_provider = true;
+
+    let failure = validate_fallback(&denied).unwrap_err();
+    let decision = validate_fallback(&allowed).unwrap();
+
+    assert_eq!(failure.class, "cross_provider_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_eq!(
+        failure.usage_event.policy_decision_id,
+        "poldec_fallback_policy"
+    );
+    assert_eq!(failure.audit_event.payload.outcome, AuditOutcome::Denied);
+    assert_eq!(
+        failure.audit_event.payload.feature_flag.as_deref(),
+        Some("gateway.provider_routing.enabled")
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+    assert!(decision.allowed);
+    assert_eq!(decision.selected_provider, "provider_b");
+}
+
+#[test]
+fn fallback_policy_allows_runner_local_only_with_explicit_scope() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let runner = fallback_candidate("runner_local", ProviderKind::LocalRunner, "runner_local");
+    let mut denied = fallback_policy_request(
+        FallbackAttemptKind::RunnerLocal,
+        primary.clone(),
+        runner.clone(),
+    );
+    denied.routing_reason = FallbackRoutingReasonCode::RunnerLocalRequired;
+    let mut allowed = denied.clone();
+    allowed.allow_runner_local = true;
+
+    let failure = validate_fallback(&denied).unwrap_err();
+    let decision = validate_fallback(&allowed).unwrap();
+
+    assert_eq!(failure.class, "runner_local_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert!(decision.allowed);
+    assert_eq!(decision.selected_provider, "runner_local");
+}
+
+#[test]
+fn fallback_policy_rejects_local_runner_candidate_in_same_provider_attempt() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let runner = fallback_candidate("runner_local", ProviderKind::LocalRunner, "provider_a");
+    let denied = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        runner.clone(),
+    );
+
+    let failure = validate_fallback(&denied).unwrap_err();
+
+    assert_eq!(failure.class, "runner_local_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_local_runner_candidate_in_retry_attempt() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let runner = fallback_candidate("provider_a", ProviderKind::LocalRunner, "provider_a");
+    let denied =
+        fallback_policy_request(FallbackAttemptKind::Retry, primary.clone(), runner.clone());
+
+    let failure = validate_fallback(&denied).unwrap_err();
+
+    assert_eq!(failure.class, "runner_local_fallback_not_allowed");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_required_capability_drop_as_normalized_failure() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    candidate.supports_json_output = false;
+    let request = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+
+    let failure = validate_fallback(&request).unwrap_err();
+
+    assert_eq!(failure.class, "required_capability_dropped");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert!(!failure.normalized_error.retryable);
+    assert_eq!(
+        failure
+            .usage_event
+            .payload
+            .measurements
+            .runtime_capability
+            .as_deref(),
+        Some("gateway.fallback_denied.required_capability_dropped")
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_requires_candidate_to_directly_satisfy_required_capabilities() {
+    let mut primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    primary.supports_json_output = false;
+    let mut candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    candidate.supports_json_output = false;
+    let request = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+
+    let failure = validate_fallback(&request).unwrap_err();
+
+    assert_eq!(failure.class, "required_capability_dropped");
+    assert_eq!(
+        failure.normalized_error.code,
+        NormalizedErrorCode::PolicyDenied
+    );
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_allows_required_capability_when_primary_metadata_is_missing_but_candidate_has_it(
+) {
+    let mut primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    primary.supports_json_output = false;
+    let candidate = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    let request = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+
+    let decision = validate_fallback(&request).unwrap();
+
+    assert!(decision.allowed);
+    assert_eq!(decision.selected_provider, "provider_b");
+}
+
+#[test]
+fn fallback_policy_rejects_region_change_without_exposing_scope_values() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut widened_scope = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    widened_scope.region = "eu".to_string();
+    let scope_request = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        widened_scope,
+    );
+
+    let scope_failure = validate_fallback(&scope_request).unwrap_err();
+
+    assert_eq!(scope_failure.class, "fallback_scope_widened");
+    assert_denial_events_do_not_expose_values(
+        &scope_failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "eu",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_data_residency_change_without_exposing_raw_value() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut widened_scope = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    widened_scope.data_residency = "restricted-eu-residency".to_string();
+    let request = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        widened_scope,
+    );
+
+    let failure = validate_fallback(&request).unwrap_err();
+
+    assert_eq!(failure.class, "fallback_scope_widened");
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "restricted-eu-residency",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_credential_scope_change_without_exposing_raw_value() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut widened_scope = fallback_candidate("provider_b", ProviderKind::Hosted, "provider_a");
+    widened_scope.credential_scope =
+        "wg_1/provider/provider_b/secret_ref_sensitive_provider_credential".to_string();
+    let request = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        widened_scope,
+    );
+
+    let failure = validate_fallback(&request).unwrap_err();
+
+    assert_eq!(failure.class, "fallback_scope_widened");
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/provider_b",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_max_cost_limit_widening() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut widened_limits = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        fallback_candidate("provider_c", ProviderKind::Hosted, "provider_a"),
+    );
+    widened_limits.candidate_limits.max_cost_micro_usd = Some(60_000);
+
+    let limit_failure = validate_fallback(&widened_limits).unwrap_err();
+
+    assert_eq!(limit_failure.class, "fallback_policy_limit_widened");
+    assert_eq!(
+        limit_failure
+            .audit_event
+            .payload
+            .runtime_capability
+            .as_deref(),
+        Some("gateway.fallback_denied.fallback_policy_limit_widened")
+    );
+    assert_denial_events_do_not_expose_values(
+        &limit_failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_max_tokens_limit_widening() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut widened_limits = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        fallback_candidate("provider_c", ProviderKind::Hosted, "provider_a"),
+    );
+    widened_limits.candidate_limits.max_tokens = Some(16_384);
+
+    let failure = validate_fallback(&widened_limits).unwrap_err();
+
+    assert_eq!(failure.class, "fallback_policy_limit_widened");
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
+    );
+}
+
+#[test]
+fn fallback_policy_rejects_candidate_limit_none_unlimited_path() {
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut unlimited_limits = fallback_policy_request(
+        FallbackAttemptKind::SameProvider,
+        primary.clone(),
+        fallback_candidate("provider_c", ProviderKind::Hosted, "provider_a"),
+    );
+    unlimited_limits.candidate_limits.max_tokens = None;
+    unlimited_limits.candidate_limits.max_cost_micro_usd = None;
+
+    let failure = validate_fallback(&unlimited_limits).unwrap_err();
+
+    assert_eq!(failure.class, "fallback_policy_limit_widened");
+    assert_denial_events_do_not_expose_values(
+        &failure,
+        &[
+            "wg_1/provider/fallback/secret_ref_sensitive_provider_credential",
+            "secret_ref_sensitive_provider_credential",
+        ],
     );
 }
 
@@ -916,6 +1361,104 @@ fn alpha_contract_uses_parent_canonical_routing_lineage() {
 
     let audit_routing = snapshot.audit.payload.routing.as_ref().unwrap();
     assert_eq!(audit_routing, usage_routing);
+}
+
+#[test]
+fn gateway_alpha_observability_metrics_emit_success_fallback_denial_and_error() {
+    let adapter = FakeProviderAdapter::new();
+    let request: ScopedModelRequest = fixture("scoped_model_request");
+    let response = adapter.complete(&request).unwrap();
+    let usage = adapter.usage_event(&request, Some(&response), None);
+    let frames = adapter.stream(&request).unwrap();
+
+    let mut fallback_response = response.clone();
+    fallback_response.routing.route_type = RouteType::Fallback;
+    fallback_response.routing.reason_code = RoutingReasonCode::FallbackAfterError;
+    fallback_response.routing.fallback_attempt = 1;
+    fallback_response.routing.fallback_from_provider = Some("fake-hosted-primary".to_string());
+
+    let primary = fallback_candidate("provider_a", ProviderKind::Hosted, "provider_a");
+    let mut candidate = fallback_candidate("provider_a_alt", ProviderKind::Hosted, "provider_a");
+    candidate.data_residency = "eu_private_residency".to_string();
+    let denial = fallback_policy_request(FallbackAttemptKind::SameProvider, primary, candidate);
+    let failure = validate_fallback(&denial).unwrap_err();
+
+    let upstream_error = NormalizedError {
+        code: NormalizedErrorCode::RateLimited,
+        message: "raw prompt sk-test-secret should never become a metric label".to_string(),
+        retryable: true,
+        upstream_status: Some(429),
+        provider_error_class: Some("acct_internal_456".to_string()),
+    };
+
+    let mut samples = Vec::new();
+    samples.extend(provider_success_metrics(
+        &response,
+        ProviderCapabilityKind::Hosted,
+        37,
+    ));
+    samples.extend(provider_success_metrics(
+        &fallback_response,
+        ProviderCapabilityKind::Hosted,
+        41,
+    ));
+    samples.push(stream_start_latency_metric(
+        frames.first().unwrap(),
+        ProviderCapabilityKind::Hosted,
+        9,
+    ));
+    samples.extend(fallback_denial_metrics(&failure));
+    samples.push(provider_error_metric(
+        &upstream_error,
+        ProviderKind::OpenAiCompatible,
+    ));
+    samples.push(usage_event_delivery_lag_metric(&usage, 17));
+
+    for expected_name in [
+        PROVIDER_LATENCY_MS,
+        STREAM_START_LATENCY_MS,
+        FALLBACK_COUNT,
+        POLICY_DENIAL_COUNT,
+        PROVIDER_ERROR_COUNT,
+        USAGE_EVENT_DELIVERY_LAG_MS,
+    ] {
+        assert!(
+            samples.iter().any(|sample| sample.name == expected_name),
+            "missing metric sample {expected_name}"
+        );
+    }
+
+    assert!(samples.iter().all(metric_labels_are_bounded));
+    assert!(samples
+        .iter()
+        .any(|sample| sample.name == FALLBACK_COUNT
+            && sample.label_value("outcome") == Some("fallback")));
+    assert!(samples
+        .iter()
+        .any(|sample| sample.name == POLICY_DENIAL_COUNT
+            && sample.label_value("error_class") == Some("fallback_scope_widened")));
+    assert!(samples
+        .iter()
+        .any(|sample| sample.name == PROVIDER_ERROR_COUNT
+            && sample.label_value("error_class") == Some("other")));
+
+    let serialized = serde_json::to_string(&samples).unwrap();
+    for sensitive in [
+        "summarize fixture contract",
+        "secret_ref_provider_fake_fixture",
+        "secret_ref_sensitive_provider_credential",
+        "eu_private_residency",
+        "sk-test-secret",
+        "acct_internal_456",
+        &request.request_id,
+        &request.correlation_id,
+        &request.working_group_id,
+    ] {
+        assert!(
+            !serialized.contains(sensitive),
+            "metric output leaked sensitive or high-cardinality value {sensitive}"
+        );
+    }
 }
 
 #[test]

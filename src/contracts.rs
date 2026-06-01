@@ -91,6 +91,14 @@ pub struct ProviderAdapterCapability {
     pub routing_reason_codes: Vec<RoutingReasonCode>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extension_points: Vec<ContractExtensionPoint>,
+    #[serde(default)]
+    pub provider_family: Option<String>,
+    #[serde(default)]
+    pub regions: Vec<String>,
+    #[serde(default)]
+    pub data_residency: Vec<String>,
+    #[serde(default)]
+    pub credential_scope_prefixes: Vec<String>,
 }
 
 impl ProviderAdapterCapability {

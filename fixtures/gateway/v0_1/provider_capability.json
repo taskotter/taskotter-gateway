@@ -39,5 +39,15 @@
     "stream_frame_metadata",
     "usage_measurements",
     "audit_payload"
+  ],
+  "provider_family": "fake-hosted",
+  "regions": [
+    "us"
+  ],
+  "data_residency": [
+    "us"
+  ],
+  "credential_scope_prefixes": [
+    "wg_fixture/provider/fake-hosted"
   ]
 }
