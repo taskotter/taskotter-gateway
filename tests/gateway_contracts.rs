@@ -1,8 +1,8 @@
 use taskotter_gateway::contracts::{
     validate_gateway_protocol_version, AuditEvent, GatewayHealth, GatewayRegistration,
     HealthStatus, McpHostingMode, NormalizedError, NormalizedErrorCode, PolicyInstruction,
-    ProviderAdapterCapability, ScopedCredentialRef, ScopedMcpSessionRequest, ScopedModelRequest,
-    StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
+    ProviderAdapterCapability, RuntimeFeatureFlags, ScopedCredentialRef, ScopedMcpSessionRequest,
+    ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
 };
 use taskotter_gateway::mcp::McpRuntimeHost;
 use taskotter_gateway::provider::{FakeProviderAdapter, ProviderAdapter};
@@ -43,6 +43,8 @@ fn fixtures_round_trip_and_validate_boundaries() {
     let frames: Vec<StreamFrame> = fixture("stream_frames");
     let usage: UsageEvent = fixture("usage_event");
     let audit: AuditEvent = fixture("audit_event");
+    let hosted_mcp_usage: UsageEvent = fixture("hosted_mcp_denied_usage_event");
+    let hosted_mcp_audit: AuditEvent = fixture("hosted_mcp_denied_audit_event");
     let error: NormalizedError = fixture("normalized_error");
 
     validate_gateway_protocol_version(&model_request.protocol_version).unwrap();
@@ -64,6 +66,26 @@ fn fixtures_round_trip_and_validate_boundaries() {
     assert_eq!(audit.event_type, "audit.policy_decision.denied");
     assert_eq!(audit.version, "0.1.0");
     assert_eq!(audit.payload.action, "gateway.provider.invoke");
+    assert_eq!(
+        hosted_mcp_usage
+            .payload
+            .measurements
+            .runtime_capability
+            .as_deref(),
+        Some("gateway.hosted_mcp_billing")
+    );
+    assert_eq!(
+        hosted_mcp_usage
+            .payload
+            .measurements
+            .metering_unit
+            .as_deref(),
+        Some("hosted_mcp_runtime_ms")
+    );
+    assert_eq!(
+        hosted_mcp_audit.payload.feature_flag.as_deref(),
+        Some("gateway.hosted_mcp_billing.enabled")
+    );
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
 }
 
@@ -162,7 +184,13 @@ fn raw_credentials_are_rejected_before_adapter_execution() {
 
 #[test]
 fn mcp_host_health_and_session_placeholder_are_verified() {
-    let host = McpRuntimeHost::new("mcp_host_local");
+    let host = McpRuntimeHost::with_feature_flags(
+        "mcp_host_local",
+        RuntimeFeatureFlags {
+            hosted_mcp_billing_enabled: true,
+            provider_routing_enabled: false,
+        },
+    );
     let request: ScopedMcpSessionRequest = fixture("scoped_mcp_session_request");
 
     let capability = host.capability();
@@ -175,10 +203,41 @@ fn mcp_host_health_and_session_placeholder_are_verified() {
     assert!(capability
         .supported_hosting_modes
         .contains(&McpHostingMode::RunnerHosted));
+    assert!(capability
+        .high_risk_capabilities
+        .iter()
+        .any(
+            |gate| gate.feature_flag == "gateway.hosted_mcp_billing.enabled"
+                && gate.enabled
+                && gate.default_policy_effect == "deny"
+        ));
     assert_eq!(session.lifecycle_state, "ready_placeholder");
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(usage.payload.measurements.tool_invocations, Some(1));
+    assert_eq!(
+        usage.payload.measurements.runtime_capability.as_deref(),
+        Some("gateway.hosted_mcp_billing")
+    );
     assert_eq!(audit.payload.action, "gateway.mcp.session.open");
+}
+
+#[test]
+fn hosted_mcp_runtime_is_disabled_by_default() {
+    let host = McpRuntimeHost::new("mcp_host_local");
+    let request: ScopedMcpSessionRequest = fixture("scoped_mcp_session_request");
+    let capability = host.capability();
+
+    let error = host.open_session(&request).unwrap_err();
+
+    assert_eq!(error.code, NormalizedErrorCode::PolicyDenied);
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("feature_flag_disabled")
+    );
+    assert!(capability
+        .high_risk_capabilities
+        .iter()
+        .all(|gate| !gate.enabled && gate.default_policy_effect == "deny"));
 }
 
 #[test]
