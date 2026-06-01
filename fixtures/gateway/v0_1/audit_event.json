@@ -18,6 +18,13 @@
   "policy_decision_id": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
   "payload": {
     "action": "gateway.provider.invoke",
-    "outcome": "denied"
+    "outcome": "denied",
+    "routing": {
+      "selected_provider": "fake-hosted",
+      "selected_model": "fake-deterministic-v1",
+      "route_type": "denied",
+      "reason_code": "policy_denied",
+      "fallback_attempt": 0
+    }
   }
 }

@@ -20,5 +20,24 @@
   "supports_tool_calls": false,
   "credential_ref_kinds": [
     "secret_ref"
+  ],
+  "routing_reason_codes": [
+    "explicit_selection",
+    "policy_default",
+    "capability_match",
+    "cost_limit",
+    "latency_preference",
+    "residency_constraint",
+    "runner_local_required",
+    "fallback_after_error",
+    "fallback_after_capacity",
+    "policy_denied"
+  ],
+  "extension_points": [
+    "provider_metadata",
+    "routing_policy",
+    "stream_frame_metadata",
+    "usage_measurements",
+    "audit_payload"
   ]
 }

@@ -7,11 +7,11 @@ use taskotter_gateway::{
     adapters::ProviderKind,
     app,
     contracts::{
-        validate_gateway_protocol_version, AuditEvent, GatewayHealth, GatewayRegistration,
-        HealthStatus, McpHostingMode, NormalizedError, NormalizedErrorCode, PolicyInstruction,
-        ProviderAdapterCapability, RuntimeFeatureFlags, ScopedCredentialRef,
-        ScopedMcpSessionRequest, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
-        GATEWAY_PROTOCOL_VERSION,
+        validate_gateway_protocol_version, AlphaNormalizedContractSnapshot, AuditEvent,
+        GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode, NormalizedError,
+        NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability, RouteType,
+        RoutingReasonCode, RuntimeFeatureFlags, ScopedCredentialRef, ScopedMcpSessionRequest,
+        ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
     },
     mcp::McpRuntimeHost,
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
@@ -168,6 +168,7 @@ fn fixtures_round_trip_and_validate_boundaries() {
     let frames: Vec<StreamFrame> = fixture("stream_frames");
     let usage: UsageEvent = fixture("usage_event");
     let audit: AuditEvent = fixture("audit_event");
+    let snapshot: AlphaNormalizedContractSnapshot = fixture("alpha_normalized_contract_snapshot");
     let hosted_mcp_usage: UsageEvent = fixture("hosted_mcp_denied_usage_event");
     let hosted_mcp_audit: AuditEvent = fixture("hosted_mcp_denied_audit_event");
     let error: NormalizedError = fixture("normalized_error");
@@ -184,8 +185,17 @@ fn fixtures_round_trip_and_validate_boundaries() {
     assert_eq!(capability.routing.fallback_priority, 100);
     assert!(capability.routing.enabled);
     assert!(capability.supports_streaming);
+    assert!(capability
+        .routing_reason_codes
+        .contains(&RoutingReasonCode::ExplicitSelection));
     assert_eq!(health.status, HealthStatus::Ok);
     assert_eq!(frames.last().unwrap().frame_type, StreamFrameType::Final);
+    assert!(frames
+        .first()
+        .unwrap()
+        .routing
+        .as_ref()
+        .is_some_and(|routing| routing.reason_code == RoutingReasonCode::ExplicitSelection));
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(usage.version, "0.1.0");
     assert_eq!(
@@ -232,6 +242,35 @@ fn fixtures_round_trip_and_validate_boundaries() {
         "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
     );
     assert_eq!(error.code, NormalizedErrorCode::RateLimited);
+    assert_eq!(snapshot.protocol_version, GATEWAY_PROTOCOL_VERSION);
+    assert_eq!(
+        snapshot.response.routing.reason_code,
+        RoutingReasonCode::FallbackAfterError
+    );
+    assert_eq!(
+        snapshot
+            .usage
+            .payload
+            .routing
+            .as_ref()
+            .expect("usage event must carry routing lineage")
+            .reason_code,
+        RoutingReasonCode::FallbackAfterError
+    );
+    assert_eq!(
+        snapshot
+            .audit
+            .payload
+            .routing
+            .as_ref()
+            .expect("audit event must carry routing lineage")
+            .fallback_from_provider
+            .as_deref(),
+        Some("fake-hosted-primary")
+    );
+    assert!(snapshot
+        .extension_points
+        .contains(&taskotter_gateway::contracts::ContractExtensionPoint::UsageMeasurements));
 }
 
 #[test]
@@ -247,6 +286,12 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
         "fake:fake-deterministic-v1:summarize fixture contract"
     );
     assert_eq!(response.usage.input_tokens, 3);
+    assert_eq!(response.protocol_version, GATEWAY_PROTOCOL_VERSION);
+    assert_eq!(response.correlation_id, request.correlation_id);
+    assert_eq!(
+        response.routing.reason_code,
+        RoutingReasonCode::ExplicitSelection
+    );
     assert!(response.usage.output_tokens > 0);
     assert_eq!(usage.event_type, "usage.gateway_request.recorded");
     assert_eq!(
@@ -255,6 +300,14 @@ fn fake_provider_returns_deterministic_non_streaming_response_and_usage() {
     );
     assert_eq!(usage.payload.measurements.input_tokens, Some(3));
     assert_eq!(usage.payload.measurements.estimated_cost_micros, Some(0));
+    assert_eq!(
+        usage.payload.routing.as_ref().unwrap().selected_provider,
+        "fake-hosted"
+    );
+    assert_eq!(
+        usage.payload.routing.as_ref().unwrap().reason_code,
+        RoutingReasonCode::ExplicitSelection
+    );
 }
 
 #[test]
@@ -549,6 +602,53 @@ fn contract_compatibility_matrix_declares_supported_versions() {
         .iter()
         .any(|version| version == GATEWAY_PROTOCOL_VERSION));
     assert!(event_versions.iter().any(|version| version == "0.1.0"));
+}
+
+#[test]
+fn alpha_snapshot_rejects_unknown_contract_fields() {
+    let mut snapshot: Value = fixture("alpha_normalized_contract_snapshot");
+    snapshot["response"]["unexpected_downstream_field"] = json!("must be modeled explicitly");
+
+    let error = serde_json::from_value::<AlphaNormalizedContractSnapshot>(snapshot).unwrap_err();
+
+    assert!(error.to_string().contains("unexpected_downstream_field"));
+}
+
+#[test]
+fn alpha_contract_uses_parent_canonical_routing_lineage() {
+    let capability: ProviderAdapterCapability = fixture("provider_capability");
+    let snapshot: AlphaNormalizedContractSnapshot = fixture("alpha_normalized_contract_snapshot");
+    let expected_codes = vec![
+        RoutingReasonCode::ExplicitSelection,
+        RoutingReasonCode::PolicyDefault,
+        RoutingReasonCode::CapabilityMatch,
+        RoutingReasonCode::CostLimit,
+        RoutingReasonCode::LatencyPreference,
+        RoutingReasonCode::ResidencyConstraint,
+        RoutingReasonCode::RunnerLocalRequired,
+        RoutingReasonCode::FallbackAfterError,
+        RoutingReasonCode::FallbackAfterCapacity,
+        RoutingReasonCode::PolicyDenied,
+    ];
+
+    assert_eq!(capability.routing_reason_codes, expected_codes);
+
+    let usage_routing = snapshot.usage.payload.routing.as_ref().unwrap();
+    assert_eq!(usage_routing.selected_provider, "fake-hosted");
+    assert_eq!(usage_routing.selected_model, "fake-deterministic-v1");
+    assert_eq!(usage_routing.route_type, RouteType::Fallback);
+    assert_eq!(
+        usage_routing.reason_code,
+        RoutingReasonCode::FallbackAfterError
+    );
+    assert_eq!(usage_routing.fallback_attempt, 1);
+    assert_eq!(
+        usage_routing.fallback_from_provider.as_deref(),
+        Some("fake-hosted-primary")
+    );
+
+    let audit_routing = snapshot.audit.payload.routing.as_ref().unwrap();
+    assert_eq!(audit_routing, usage_routing);
 }
 
 #[test]
