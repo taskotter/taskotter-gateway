@@ -57,6 +57,28 @@ live provider keys, hosted MCP runtime, private runner access, or paid resources
 Reusable alpha routing case names and adapter/routing/fallback usage are listed
 in `fixtures/gateway/v0_1/README.md`.
 
+## Local Metrics Verification
+
+Gateway alpha metrics are modeled by the repo-local `metrics` module so local
+and CI checks can verify observability behavior without a paid collector. The
+bounded metric names are `gateway_provider_latency_ms`,
+`gateway_stream_start_latency_ms`, `gateway_fallback_count`,
+`gateway_policy_denial_count`, `gateway_usage_event_delivery_lag_ms`, and
+`gateway_provider_error_count`.
+
+Metric labels intentionally use bounded enums only: outcome, provider kind,
+route type, routing reason code, normalized error code/class, event source, and
+stream frame type. They must not include prompt text, raw provider messages,
+request IDs, correlation IDs, working group IDs, provider secrets, credential
+references, raw headers, customer data, or private payloads.
+
+Verify locally or in CI-compatible mode with:
+
+```sh
+cargo test gateway_alpha_observability_metrics -- --nocapture
+cargo test metrics -- --nocapture
+```
+
 ## Safety Boundaries
 
 - Real provider keys, paid provider calls, private endpoint credentials, and production secret storage are not part of this scaffold.

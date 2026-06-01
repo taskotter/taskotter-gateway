@@ -337,6 +337,10 @@ impl ProviderAdapter for OpenAiCompatibleProviderAdapter {
                 ContractExtensionPoint::UsageMeasurements,
                 ContractExtensionPoint::AuditPayload,
             ],
+            provider_family: Some(self.provider.clone()),
+            regions: Vec::new(),
+            data_residency: Vec::new(),
+            credential_scope_prefixes: Vec::new(),
         }
     }
 
@@ -527,6 +531,10 @@ impl ProviderAdapter for FakeProviderAdapter {
                 crate::contracts::ContractExtensionPoint::UsageMeasurements,
                 crate::contracts::ContractExtensionPoint::AuditPayload,
             ],
+            provider_family: Some("fake-hosted".to_string()),
+            regions: vec!["us".to_string()],
+            data_residency: vec!["us".to_string()],
+            credential_scope_prefixes: vec!["wg_fixture/provider/fake-hosted".to_string()],
         }
     }
 
