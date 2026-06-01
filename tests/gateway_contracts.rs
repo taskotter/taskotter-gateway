@@ -889,7 +889,7 @@ fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
 fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
     let cases: Vec<McpToolPolicyFixtureCase> = fixture("mcp_tool_policy_cases");
 
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 12);
     assert!(cases
         .iter()
         .any(|case| case.request.tool.risk_level == McpToolRiskLevel::ReadOnly));
@@ -905,6 +905,25 @@ fn mcp_tool_policy_fixtures_cover_risk_and_actor_bindings() {
         case.request.tool.risk_level == McpToolRiskLevel::Execution
             && case.expected_effect == McpToolPolicyEffect::Denied
     }));
+    for expected_reason in [
+        "working_group_scope_mismatch",
+        "actor_type_not_allowed",
+        "actor_id_not_allowed",
+        "required_skill_missing",
+        "agent_binding_not_allowed",
+        "runner_binding_not_allowed",
+        "credential_reference_required",
+        "credential_scope_mismatch",
+        "credential_reference_kind_not_allowed",
+    ] {
+        assert!(
+            cases.iter().any(|case| {
+                case.expected_effect == McpToolPolicyEffect::Denied
+                    && case.expected_reason_code.as_deref() == Some(expected_reason)
+            }),
+            "missing MCP tool policy fixture for {expected_reason}"
+        );
+    }
 
     for case in cases {
         case.request.tool.validate_risk_metadata().unwrap();
