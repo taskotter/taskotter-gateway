@@ -1,0 +1,37 @@
+name: Contract Compatibility
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fixtures/**"
+      - "contract-compatibility.json"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/contract-compatibility.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fixtures/**"
+      - "contract-compatibility.json"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/contract-compatibility.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contract-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test contract_compatibility_matrix_declares_supported_versions
+      - run: cargo test rejects_unsupported_gateway_protocol_fixture
+      - run: cargo test

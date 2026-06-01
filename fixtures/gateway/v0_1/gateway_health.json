@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "gateway_id": "gw_fixture",
+  "provider_adapters": [
+    {
+      "provider": "fake-hosted",
+      "status": "ok",
+      "supports_streaming": true
+    }
+  ],
+  "mcp_hosts": [
+    {
+      "host_id": "mcp_host_fixture",
+      "hosting_mode": "gateway_hosted",
+      "status": "ok"
+    }
+  ]
+}

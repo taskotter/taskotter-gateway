@@ -1,0 +1,17 @@
+{
+  "provider": "fake-hosted",
+  "adapter_version": "0.1.0",
+  "supported_models": [
+    {
+      "model": "fake-deterministic-v1",
+      "context_window_tokens": 8192,
+      "supports_json_output": true,
+      "supports_tool_calls": false
+    }
+  ],
+  "supports_streaming": true,
+  "supports_tool_calls": false,
+  "credential_ref_kinds": [
+    "secret_ref"
+  ]
+}

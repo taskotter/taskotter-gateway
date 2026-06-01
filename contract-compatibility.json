@@ -1,0 +1,18 @@
+{
+  "control_plane": {
+    "minimum_version": "0.1.0",
+    "recommended_version": "0.1.0"
+  },
+  "gateway": {
+    "supported_protocol_versions": ["gateway.v0.1"],
+    "event_envelope_versions": ["0.1.0"],
+    "fixtures": [
+      "fixtures/gateway/v0_1/scoped_model_request.json",
+      "fixtures/gateway/v0_1/scoped_model_signed_request.json",
+      "fixtures/gateway/v0_1/scoped_mcp_session_request.json",
+      "fixtures/gateway/v0_1/usage_event.json",
+      "fixtures/gateway/v0_1/audit_event.json"
+    ],
+    "unsupported_fixture": "fixtures/gateway/unsupported_protocol/scoped_model_request.json"
+  }
+}

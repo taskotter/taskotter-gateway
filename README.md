@@ -4,6 +4,8 @@ MVP foundation for the TaskOtter AI Gateway and MCP hosting boundary.
 
 This service is intentionally a contract scaffold. It normalizes AI provider requests, applies a gateway policy hook supplied by the control plane, routes to stub provider adapters, models MCP endpoint hosting modes, and emits explicit versioned usage/audit events. It does not collect provider credentials, proxy production traffic, launch paid hosted MCP runtimes, or manage billing.
 
+TaskOtter Gateway is also the execution-plane runtime boundary for model provider traffic and MCP hosting or brokering. Frontend clients must not call this service directly. The TaskOtter control plane authenticates actors, evaluates policy, issues scoped dispatch instructions, relays safe stream events, and owns durable usage, audit, and billing records.
+
 ## Local Development
 
 ```sh
@@ -20,6 +22,8 @@ The server listens on `127.0.0.1:8080` by default. Override with `TASKOTTER_GATE
 - `POST /v1/ai/relay` accepts a normalized provider request and returns a stub relay response with a `usage_audit_event.v1` payload.
 - `POST /v1/mcp/resolve` accepts an MCP endpoint model and returns the policy-visible lifecycle mode.
 - `GET /healthz` returns service health.
+- Versioned gateway protocol structs and JSON fixtures validate the gateway/control-plane contract.
+- The deterministic fake provider adapter and MCP runtime host placeholders support local compatibility tests without provider credentials or paid resources.
 
 Policy decisions use the control-plane canonical shape:
 `allowed`, `decision_id`, optional `reason`, optional `max_tokens`, and optional
@@ -29,6 +33,17 @@ Policy decisions use the control-plane canonical shape:
 `usage_audit_event.v1` is emitted for succeeded, denied, and timeout relay
 attempts. The event includes `request_id`, optional `correlation_id`, subject,
 provider, `decision_id`, `status`, token counts, and estimated cost in micro-USD.
+
+## Safety Boundaries
+
+- Real provider keys, paid provider calls, private endpoint credentials, and production secret storage are not part of this scaffold.
+- Runtime credentials are represented only by scoped references such as `secret_ref` identifiers.
+- Signed dispatch placeholders keep `gwi_*` instruction references separate from canonical `poldec_*` policy decision lineage.
+- `UsageEvent` and `AuditEvent` fixtures use the BOG-425 control-plane event envelope with root `id`, `type`, `version`, `actor`, `resource`, `correlation_id`, `request_id`, and `payload` fields.
+
+## Compatibility Checks
+
+`contract-compatibility.json` declares the control-plane and gateway protocol versions this repository consumes. CI calls the repo-local compatibility tests `cargo test contract_compatibility_matrix_declares_supported_versions` and `cargo test rejects_unsupported_gateway_protocol_fixture` so unsupported gateway protocol fixtures fail before merge without requiring provider credentials or paid resources.
 
 ## Known Limitations
 

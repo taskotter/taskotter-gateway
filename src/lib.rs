@@ -1,7 +1,9 @@
 pub mod adapters;
 pub mod api;
+pub mod contracts;
 pub mod mcp;
 pub mod policy;
+pub mod provider;
 pub mod usage;
 
 use std::sync::Arc;
@@ -27,3 +29,5 @@ pub fn app() -> Router {
         .route("/v1/mcp/resolve", post(resolve_mcp_endpoint))
         .with_state(state)
 }
+
+pub use contracts::*;
