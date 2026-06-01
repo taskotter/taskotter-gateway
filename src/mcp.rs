@@ -1,8 +1,8 @@
 use crate::contracts::{
     AuditEvent, AuditOutcome, AuditPayload, EventActorRef, EventResourceRef, EventSource,
-    HealthStatus, McpHostCapability, McpHostHealth, McpHostingMode, NormalizedError,
-    ScopedMcpSessionRequest, UsageEvent, UsageMeasurements, UsagePayload, UsageSubject,
-    UsageSubjectType,
+    GatewayCapabilityGate, HealthStatus, HighRiskGatewayCapability, McpHostCapability,
+    McpHostHealth, McpHostingMode, NormalizedError, RuntimeFeatureFlags, ScopedMcpSessionRequest,
+    UsageEvent, UsageMeasurements, UsagePayload, UsageSubject, UsageSubjectType,
 };
 use serde::{Deserialize, Serialize};
 
@@ -56,12 +56,24 @@ pub fn resolve_endpoint(endpoint: McpEndpoint) -> McpResolution {
 #[derive(Debug, Clone)]
 pub struct McpRuntimeHost {
     host_id: String,
+    feature_flags: RuntimeFeatureFlags,
 }
 
 impl McpRuntimeHost {
     pub fn new(host_id: impl Into<String>) -> Self {
         Self {
             host_id: host_id.into(),
+            feature_flags: RuntimeFeatureFlags::default(),
+        }
+    }
+
+    pub fn with_feature_flags(
+        host_id: impl Into<String>,
+        feature_flags: RuntimeFeatureFlags,
+    ) -> Self {
+        Self {
+            host_id: host_id.into(),
+            feature_flags,
         }
     }
 
@@ -74,6 +86,14 @@ impl McpRuntimeHost {
                 McpHostingMode::ExternalRemote,
             ],
             supports_lifecycle_placeholder: true,
+            high_risk_capabilities: vec![GatewayCapabilityGate {
+                capability: HighRiskGatewayCapability::HostedMcpBilling,
+                feature_flag: HighRiskGatewayCapability::HostedMcpBilling
+                    .feature_flag()
+                    .to_string(),
+                enabled: self.feature_flags.hosted_mcp_billing_enabled,
+                default_policy_effect: "deny".to_string(),
+            }],
         }
     }
 
@@ -90,6 +110,15 @@ impl McpRuntimeHost {
         request: &ScopedMcpSessionRequest,
     ) -> Result<McpSessionPlaceholder, NormalizedError> {
         request.validate_boundary()?;
+        if request.hosting_mode == McpHostingMode::GatewayHosted
+            && !self.feature_flags.hosted_mcp_billing_enabled
+        {
+            return Err(NormalizedError::policy_denied(
+                "feature_flag_disabled",
+                "Hosted MCP paid runtime is disabled by default.",
+            ));
+        }
+
         Ok(McpSessionPlaceholder {
             session_id: request.session_id.clone(),
             host_id: self.host_id.clone(),
@@ -129,6 +158,12 @@ impl McpRuntimeHost {
                     output_tokens: Some(0),
                     tool_invocations: Some(request.allowed_tool_refs.len() as u32),
                     estimated_cost_micros: Some(0),
+                    metering_unit: Some("hosted_mcp_runtime_ms".to_string()),
+                    runtime_capability: Some(
+                        HighRiskGatewayCapability::HostedMcpBilling
+                            .contract_name()
+                            .to_string(),
+                    ),
                 },
             },
         }
@@ -154,7 +189,18 @@ impl McpRuntimeHost {
             policy_decision_id,
             payload: AuditPayload {
                 action: "gateway.mcp.session.open".to_string(),
-                outcome: AuditOutcome::Allowed,
+                outcome: AuditOutcome::Denied,
+                runtime_capability: Some(
+                    HighRiskGatewayCapability::HostedMcpBilling
+                        .contract_name()
+                        .to_string(),
+                ),
+                feature_flag: Some(
+                    HighRiskGatewayCapability::HostedMcpBilling
+                        .feature_flag()
+                        .to_string(),
+                ),
+                approval_ref: Some("policy_decision_ref".to_string()),
             },
         }
     }

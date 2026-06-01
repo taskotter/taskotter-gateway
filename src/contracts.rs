@@ -94,6 +94,7 @@ pub struct McpHostCapability {
     pub host_id: String,
     pub supported_hosting_modes: Vec<McpHostingMode>,
     pub supports_lifecycle_placeholder: bool,
+    pub high_risk_capabilities: Vec<GatewayCapabilityGate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +103,45 @@ pub enum McpHostingMode {
     GatewayHosted,
     RunnerHosted,
     ExternalRemote,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeFeatureFlags {
+    #[serde(default)]
+    pub hosted_mcp_billing_enabled: bool,
+    #[serde(default)]
+    pub provider_routing_enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HighRiskGatewayCapability {
+    HostedMcpBilling,
+    SensitiveProviderRouting,
+}
+
+impl HighRiskGatewayCapability {
+    pub fn contract_name(self) -> &'static str {
+        match self {
+            Self::HostedMcpBilling => "gateway.hosted_mcp_billing",
+            Self::SensitiveProviderRouting => "gateway.sensitive_provider_routing",
+        }
+    }
+
+    pub fn feature_flag(self) -> &'static str {
+        match self {
+            Self::HostedMcpBilling => "gateway.hosted_mcp_billing.enabled",
+            Self::SensitiveProviderRouting => "gateway.provider_routing.enabled",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GatewayCapabilityGate {
+    pub capability: HighRiskGatewayCapability,
+    pub feature_flag: String,
+    pub enabled: bool,
+    pub default_policy_effect: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -348,6 +388,10 @@ pub struct UsageMeasurements {
     pub output_tokens: Option<u32>,
     pub tool_invocations: Option<u32>,
     pub estimated_cost_micros: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metering_unit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_capability: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -412,6 +456,12 @@ pub struct EventResourceRef {
 pub struct AuditPayload {
     pub action: String,
     pub outcome: AuditOutcome,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_capability: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feature_flag: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

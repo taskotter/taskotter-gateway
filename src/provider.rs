@@ -178,6 +178,8 @@ impl ProviderAdapter for FakeProviderAdapter {
                     output_tokens: usage.as_ref().map(|usage| usage.output_tokens),
                     tool_invocations: Some(0),
                     estimated_cost_micros: Some(0),
+                    metering_unit: None,
+                    runtime_capability: None,
                 },
             },
         }

@@ -11,7 +11,9 @@
       "fixtures/gateway/v0_1/scoped_model_signed_request.json",
       "fixtures/gateway/v0_1/scoped_mcp_session_request.json",
       "fixtures/gateway/v0_1/usage_event.json",
-      "fixtures/gateway/v0_1/audit_event.json"
+      "fixtures/gateway/v0_1/audit_event.json",
+      "fixtures/gateway/v0_1/hosted_mcp_denied_usage_event.json",
+      "fixtures/gateway/v0_1/hosted_mcp_denied_audit_event.json"
     ],
     "unsupported_fixture": "fixtures/gateway/unsupported_protocol/scoped_model_request.json"
   }

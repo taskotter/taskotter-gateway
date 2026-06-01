@@ -1,0 +1,33 @@
+{
+  "id": "evt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "type": "usage.gateway_request.recorded",
+  "version": "0.1.0",
+  "occurred_at": "2026-01-01T00:00:01.000Z",
+  "source": "gateway",
+  "working_group_id": "wg_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "actor": {
+    "type": "agent",
+    "id": "agt_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+  },
+  "resource": {
+    "type": "mcp_server",
+    "id": "mcp_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+  },
+  "correlation_id": "corr_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "request_id": "req_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "policy_decision_id": "poldec_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "idempotency_key": "usage_01J9Z4P4BS0M9P2QJ6T8Z6W2EP",
+  "payload": {
+    "subject": {
+      "type": "gateway_request",
+      "id": "gwreq_01J9Z4P4BS0M9P2QJ6T8Z6W2EP"
+    },
+    "measurements": {
+      "duration_ms": 0,
+      "tool_invocations": 0,
+      "estimated_cost_micros": 0,
+      "metering_unit": "hosted_mcp_runtime_ms",
+      "runtime_capability": "gateway.hosted_mcp_billing"
+    }
+  }
+}
