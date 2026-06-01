@@ -79,6 +79,14 @@ pub struct ProviderAdapterCapability {
     pub supports_streaming: bool,
     pub supports_tool_calls: bool,
     pub credential_ref_kinds: Vec<CredentialRefKind>,
+    #[serde(default)]
+    pub provider_family: Option<String>,
+    #[serde(default)]
+    pub regions: Vec<String>,
+    #[serde(default)]
+    pub data_residency: Vec<String>,
+    #[serde(default)]
+    pub credential_scope_prefixes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

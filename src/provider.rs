@@ -46,6 +46,10 @@ impl ProviderAdapter for FakeProviderAdapter {
             supports_streaming: true,
             supports_tool_calls: false,
             credential_ref_kinds: vec![crate::contracts::CredentialRefKind::SecretRef],
+            provider_family: Some("fake-hosted".to_string()),
+            regions: vec!["us".to_string()],
+            data_residency: vec!["us".to_string()],
+            credential_scope_prefixes: vec!["wg_fixture/provider/fake-hosted".to_string()],
         }
     }
 
