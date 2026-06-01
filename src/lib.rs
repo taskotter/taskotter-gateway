@@ -1,6 +1,7 @@
 pub mod adapters;
 pub mod api;
 pub mod contracts;
+pub mod fallback;
 pub mod mcp;
 pub mod policy;
 pub mod provider;

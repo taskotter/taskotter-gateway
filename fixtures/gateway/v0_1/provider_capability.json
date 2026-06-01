@@ -13,5 +13,15 @@
   "supports_tool_calls": false,
   "credential_ref_kinds": [
     "secret_ref"
+  ],
+  "provider_family": "fake-hosted",
+  "regions": [
+    "us"
+  ],
+  "data_residency": [
+    "us"
+  ],
+  "credential_scope_prefixes": [
+    "wg_fixture/provider/fake-hosted"
   ]
 }
