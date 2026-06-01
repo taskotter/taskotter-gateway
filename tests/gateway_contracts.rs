@@ -16,6 +16,9 @@ use taskotter_gateway::{
     mcp::McpRuntimeHost,
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
     provider::{FakeProviderAdapter, ProviderAdapter},
+    provider::{
+        OpenAiCompatibleHttpResponse, OpenAiCompatibleProviderAdapter, OpenAiCompatibleStreamEvent,
+    },
     simulator::GatewaySimulationFixture,
 };
 use tower::ServiceExt;
@@ -301,6 +304,111 @@ fn fake_provider_normalizes_provider_errors() {
     assert_eq!(
         frames.last().unwrap().error.as_ref().unwrap().code,
         NormalizedErrorCode::RateLimited
+    );
+}
+
+#[test]
+fn openai_compatible_adapter_builds_request_without_raw_credentials() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let request: ScopedModelRequest = fixture("scoped_model_request");
+
+    let provider_request = adapter.build_chat_completions_request(&request).unwrap();
+
+    assert_eq!(provider_request.method, "POST");
+    assert_eq!(provider_request.path, "/v1/chat/completions");
+    assert_eq!(
+        provider_request.credential_ref,
+        "secret_ref_provider_fake_fixture"
+    );
+    assert_eq!(provider_request.body["model"], request.model);
+    assert_eq!(provider_request.body["stream"], request.stream);
+    assert_eq!(
+        provider_request.body["metadata"]["gateway_request_id"],
+        request.request_id
+    );
+    assert!(
+        !provider_request
+            .body
+            .to_string()
+            .contains("secret_ref_provider_fake_fixture"),
+        "credential references stay outside the provider JSON body"
+    );
+}
+
+#[test]
+fn openai_compatible_adapter_maps_response_usage_and_audit() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let request: ScopedModelRequest = fixture("scoped_model_request");
+    let response = adapter
+        .complete_from_response(
+            &request,
+            OpenAiCompatibleHttpResponse {
+                status: 200,
+                body: fixture("openai_chat_completion_response"),
+            },
+        )
+        .unwrap();
+    let usage = adapter.usage_event(&request, Some(&response), None);
+    let audit = adapter.audit_event(
+        &request,
+        taskotter_gateway::contracts::AuditOutcome::Succeeded,
+    );
+
+    assert_eq!(response.content, "adapter normalized response");
+    assert_eq!(
+        response.finish_reason,
+        taskotter_gateway::contracts::FinishReason::Stop
+    );
+    assert_eq!(response.usage.input_tokens, 11);
+    assert_eq!(response.usage.output_tokens, 3);
+    assert_eq!(usage.resource.id, "openai-compatible");
+    assert_eq!(
+        usage.payload.measurements.runtime_capability.as_deref(),
+        Some("gateway.sensitive_provider_routing")
+    );
+    assert_eq!(audit.payload.action, "gateway.provider.invoke");
+    assert_eq!(
+        audit.payload.feature_flag.as_deref(),
+        Some("gateway.provider_routing.enabled")
+    );
+}
+
+#[test]
+fn openai_compatible_adapter_maps_stream_and_provider_errors() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.stream = true;
+    let events: Vec<OpenAiCompatibleStreamEvent> = fixture("openai_chat_completion_stream");
+
+    let frames = adapter.stream_from_events(&request, &events).unwrap();
+    let error = adapter
+        .complete_from_response(
+            &request,
+            OpenAiCompatibleHttpResponse {
+                status: 429,
+                body: fixture("openai_rate_limit_error"),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(frames.first().unwrap().frame_type, StreamFrameType::Start);
+    assert!(frames
+        .iter()
+        .any(|frame| frame.frame_type == StreamFrameType::ContentDelta
+            && frame.delta.as_deref() == Some("adapter ")));
+    assert!(frames
+        .iter()
+        .any(|frame| frame.frame_type == StreamFrameType::UsageDelta));
+    assert_eq!(frames.last().unwrap().frame_type, StreamFrameType::Final);
+    assert_eq!(
+        frames.last().unwrap().usage.as_ref().unwrap().total_tokens,
+        14
+    );
+    assert_eq!(error.code, NormalizedErrorCode::RateLimited);
+    assert_eq!(error.upstream_status, Some(429));
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("rate_limit_error")
     );
 }
 
