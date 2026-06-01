@@ -1,6 +1,21 @@
 use serde::{Deserialize, Serialize};
 
 pub const GATEWAY_PROTOCOL_VERSION: &str = "gateway.v0.1";
+pub const SUPPORTED_GATEWAY_PROTOCOL_VERSIONS: &[&str] = &[GATEWAY_PROTOCOL_VERSION];
+
+pub fn validate_gateway_protocol_version(version: &str) -> Result<(), NormalizedError> {
+    if SUPPORTED_GATEWAY_PROTOCOL_VERSIONS.contains(&version) {
+        Ok(())
+    } else {
+        Err(NormalizedError {
+            code: NormalizedErrorCode::InvalidGatewayRequest,
+            message: format!("unsupported gateway protocol version: {version}"),
+            retryable: false,
+            upstream_status: None,
+            provider_error_class: Some("unsupported_gateway_protocol_version".to_string()),
+        })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

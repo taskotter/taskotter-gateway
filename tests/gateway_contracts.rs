@@ -1,8 +1,8 @@
 use taskotter_gateway::contracts::{
-    AuditEvent, GatewayHealth, GatewayRegistration, HealthStatus, McpHostingMode, NormalizedError,
-    NormalizedErrorCode, PolicyInstruction, ProviderAdapterCapability, ScopedCredentialRef,
-    ScopedMcpSessionRequest, ScopedModelRequest, StreamFrame, StreamFrameType, UsageEvent,
-    GATEWAY_PROTOCOL_VERSION,
+    validate_gateway_protocol_version, AuditEvent, GatewayHealth, GatewayRegistration,
+    HealthStatus, McpHostingMode, NormalizedError, NormalizedErrorCode, PolicyInstruction,
+    ProviderAdapterCapability, ScopedCredentialRef, ScopedMcpSessionRequest, ScopedModelRequest,
+    StreamFrame, StreamFrameType, UsageEvent, GATEWAY_PROTOCOL_VERSION,
 };
 use taskotter_gateway::mcp::McpRuntimeHost;
 use taskotter_gateway::provider::{FakeProviderAdapter, ProviderAdapter};
@@ -45,6 +45,9 @@ fn fixtures_round_trip_and_validate_boundaries() {
     let audit: AuditEvent = fixture("audit_event");
     let error: NormalizedError = fixture("normalized_error");
 
+    validate_gateway_protocol_version(&model_request.protocol_version).unwrap();
+    validate_gateway_protocol_version(&signed_model_request.protocol_version).unwrap();
+    validate_gateway_protocol_version(&mcp_request.protocol_version).unwrap();
     model_request.validate_boundary().unwrap();
     signed_model_request.validate_boundary().unwrap();
     mcp_request.validate_boundary().unwrap();
@@ -202,4 +205,41 @@ fn signed_dispatch_mcp_events_keep_policy_decision_lineage_separate() {
     );
     assert!(!usage.policy_decision_id.starts_with("gwi_"));
     assert!(!audit.policy_decision_id.starts_with("gwi_"));
+}
+
+#[test]
+fn rejects_unsupported_gateway_protocol_fixture() {
+    let bytes = std::fs::read("fixtures/gateway/unsupported_protocol/scoped_model_request.json")
+        .expect("unsupported protocol fixture should exist");
+    let value: serde_json::Value =
+        serde_json::from_slice(&bytes).expect("unsupported fixture should parse");
+    let version = value["protocol_version"]
+        .as_str()
+        .expect("fixture must declare a protocol version");
+
+    let error = validate_gateway_protocol_version(version).unwrap_err();
+
+    assert_eq!(error.code, NormalizedErrorCode::InvalidGatewayRequest);
+    assert_eq!(
+        error.provider_error_class.as_deref(),
+        Some("unsupported_gateway_protocol_version")
+    );
+}
+
+#[test]
+fn contract_compatibility_matrix_declares_supported_versions() {
+    let matrix: serde_json::Value =
+        serde_json::from_str(include_str!("../contract-compatibility.json"))
+            .expect("compatibility declaration should parse");
+    let versions = matrix["gateway"]["supported_protocol_versions"]
+        .as_array()
+        .expect("supported protocol versions must be declared");
+    let event_versions = matrix["gateway"]["event_envelope_versions"]
+        .as_array()
+        .expect("event envelope versions must be declared");
+
+    assert!(versions
+        .iter()
+        .any(|version| version == GATEWAY_PROTOCOL_VERSION));
+    assert!(event_versions.iter().any(|version| version == "0.1.0"));
 }
