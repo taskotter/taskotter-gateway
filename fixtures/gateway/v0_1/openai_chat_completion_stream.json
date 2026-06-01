@@ -1,0 +1,26 @@
+[
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "adapter "
+        }
+      }
+    ]
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "normalized response"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 11,
+      "completion_tokens": 3,
+      "total_tokens": 14
+    }
+  }
+]
