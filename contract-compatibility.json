@@ -13,7 +13,8 @@
       "fixtures/gateway/v0_1/usage_event.json",
       "fixtures/gateway/v0_1/audit_event.json",
       "fixtures/gateway/v0_1/hosted_mcp_denied_usage_event.json",
-      "fixtures/gateway/v0_1/hosted_mcp_denied_audit_event.json"
+      "fixtures/gateway/v0_1/hosted_mcp_denied_audit_event.json",
+      "fixtures/gateway/v0_1/mcp_tool_policy_cases.json"
     ],
     "unsupported_fixture": "fixtures/gateway/unsupported_protocol/scoped_model_request.json"
   }
