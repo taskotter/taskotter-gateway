@@ -71,31 +71,35 @@ impl OpenAiCompatibleProviderAdapter {
         request: &ScopedModelRequest,
     ) -> Result<OpenAiCompatibleChatRequest, NormalizedError> {
         request.validate_boundary()?;
+        let mut body = json!({
+            "model": request.model,
+            "messages": request
+                .messages
+                .iter()
+                .map(|message| json!({
+                    "role": message.role,
+                    "content": message.content,
+                }))
+                .collect::<Vec<_>>(),
+            "stream": request.stream,
+            "metadata": {
+                "gateway_request_id": request.request_id,
+                "gateway_correlation_id": request.correlation_id,
+                "working_group_id": request.working_group_id,
+            },
+        });
+
+        if request.stream {
+            body["stream_options"] = json!({
+                "include_usage": true,
+            });
+        }
 
         Ok(OpenAiCompatibleChatRequest {
             method: "POST".to_string(),
             path: "/v1/chat/completions".to_string(),
             credential_ref: request.credential_ref.reference.clone(),
-            body: json!({
-                "model": request.model,
-                "messages": request
-                    .messages
-                    .iter()
-                    .map(|message| json!({
-                        "role": message.role,
-                        "content": message.content,
-                    }))
-                    .collect::<Vec<_>>(),
-                "stream": request.stream,
-                "metadata": {
-                    "gateway_request_id": request.request_id,
-                    "gateway_correlation_id": request.correlation_id,
-                    "working_group_id": request.working_group_id,
-                },
-                "stream_options": {
-                    "include_usage": true,
-                },
-            }),
+            body,
         })
     }
 

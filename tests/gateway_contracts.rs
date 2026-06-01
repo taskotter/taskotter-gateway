@@ -326,12 +326,43 @@ fn openai_compatible_adapter_builds_request_without_raw_credentials() {
         provider_request.body["metadata"]["gateway_request_id"],
         request.request_id
     );
+    assert_eq!(
+        provider_request.body["stream_options"]["include_usage"],
+        true
+    );
     assert!(
         !provider_request
             .body
             .to_string()
             .contains("secret_ref_provider_fake_fixture"),
         "credential references stay outside the provider JSON body"
+    );
+}
+
+#[test]
+fn openai_compatible_non_stream_request_omits_stream_options() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.stream = false;
+
+    let provider_request = adapter.build_chat_completions_request(&request).unwrap();
+
+    assert_eq!(provider_request.body["stream"], false);
+    assert!(provider_request.body.get("stream_options").is_none());
+}
+
+#[test]
+fn openai_compatible_stream_request_includes_usage_stream_options() {
+    let adapter = OpenAiCompatibleProviderAdapter::default();
+    let mut request: ScopedModelRequest = fixture("scoped_model_request");
+    request.stream = true;
+
+    let provider_request = adapter.build_chat_completions_request(&request).unwrap();
+
+    assert_eq!(provider_request.body["stream"], true);
+    assert_eq!(
+        provider_request.body["stream_options"]["include_usage"],
+        true
     );
 }
 
