@@ -22,6 +22,7 @@ use taskotter_gateway::{
     mcp::{resolve_endpoint, McpEndpoint, McpHostMode},
     provider::{FakeProviderAdapter, ProviderAdapter},
     simulator::GatewaySimulationFixture,
+    usage::UsageAuditEventV1,
 };
 use tower::ServiceExt;
 
@@ -51,7 +52,8 @@ fn relay_payload(provider_id: &str) -> Value {
         "subject": {
             "user_id": "user_1",
             "working_group_id": "wg_1",
-            "agent_id": "agent_1"
+            "agent_id": "agent_1",
+            "workflow_id": "workflow_1"
         },
         "provider": {
             "provider_id": provider_id,
@@ -63,6 +65,36 @@ fn relay_payload(provider_id: &str) -> Value {
             { "role": "user", "content": "hello" }
         ],
         "stream": true
+    })
+}
+
+fn bound_relay_payload() -> Value {
+    json!({
+        "request_id": "00000000-0000-0000-0000-000000000557",
+        "subject": {
+            "user_id": "user_1",
+            "working_group_id": "wg_1",
+            "agent_id": "agent_1",
+            "workflow_id": "workflow_1",
+            "data_boundary_id": "db_us_fixture"
+        },
+        "provider": {
+            "provider_id": "provider_policy_bound",
+            "kind": "open_ai_compatible",
+            "model": "test-model",
+            "endpoint_id": "endpoint_1",
+            "allowed_working_group_ids": ["wg_1"],
+            "allowed_agent_ids": ["agent_1"],
+            "allowed_workflow_ids": ["workflow_1"],
+            "allowed_models": ["test-model"],
+            "data_boundary_id": "db_us_fixture"
+        },
+        "messages": [
+            { "role": "user", "content": "hello" }
+        ],
+        "stream": true,
+        "requested_max_tokens": 1024,
+        "estimated_cost_micro_usd": 25_000
     })
 }
 
@@ -170,6 +202,148 @@ async fn policy_hook_denies_disabled_provider() {
         "usage_audit_event.v1"
     );
     assert_eq!(body["usage_audit_event"]["status"], "denied");
+}
+
+#[tokio::test]
+async fn provider_policy_allows_only_bound_subject_model_and_data_boundary() {
+    let (status, body) = post_json("/v1/ai/relay", bound_relay_payload()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["usage_audit_event"]["status"], "succeeded");
+    assert_eq!(
+        body["usage_audit_event"]["idempotency_key"],
+        "usage:00000000-0000-0000-0000-000000000557"
+    );
+
+    let mut wrong_wg = bound_relay_payload();
+    wrong_wg["subject"]["working_group_id"] = json!("wg_other");
+    let (status, body) = post_json("/v1/ai/relay", wrong_wg).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        body["error"]["message"],
+        "provider not available to working group"
+    );
+    assert_eq!(body["usage_audit_event"]["status"], "denied");
+
+    let mut wrong_agent = bound_relay_payload();
+    wrong_agent["subject"]["agent_id"] = json!("agent_other");
+    let (status, body) = post_json("/v1/ai/relay", wrong_agent).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"]["message"], "provider not bound to agent");
+
+    let mut wrong_workflow = bound_relay_payload();
+    wrong_workflow["subject"]["workflow_id"] = json!("workflow_other");
+    let (status, body) = post_json("/v1/ai/relay", wrong_workflow).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"]["message"], "provider not bound to workflow");
+
+    let mut wrong_model = bound_relay_payload();
+    wrong_model["provider"]["model"] = json!("not-allowed-model");
+    let (status, body) = post_json("/v1/ai/relay", wrong_model).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        body["error"]["message"],
+        "model not allowed for provider binding"
+    );
+
+    let mut wrong_boundary = bound_relay_payload();
+    wrong_boundary["subject"]["data_boundary_id"] = json!("db_eu_fixture");
+    let (status, body) = post_json("/v1/ai/relay", wrong_boundary).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        body["error"]["message"],
+        "provider data boundary is not visible to subject"
+    );
+}
+
+#[tokio::test]
+async fn usage_cost_limits_are_enforced_before_and_during_provider_execution() {
+    let mut preflight_token_denial = bound_relay_payload();
+    preflight_token_denial["requested_max_tokens"] = json!(8_193);
+    let (status, body) = post_json("/v1/ai/relay", preflight_token_denial).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"]["message"], "request exceeds token quota");
+    assert_eq!(body["usage_audit_event"]["status"], "denied");
+
+    let mut preflight_cost_denial = bound_relay_payload();
+    preflight_cost_denial["estimated_cost_micro_usd"] = json!(50_001);
+    let (status, body) = post_json("/v1/ai/relay", preflight_cost_denial).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(body["error"]["message"], "request exceeds cost quota");
+    assert_eq!(body["usage_audit_event"]["status"], "denied");
+
+    let mut mid_stream_quota = bound_relay_payload();
+    mid_stream_quota["messages"][0]["content"] = json!("simulate:mid_stream_quota");
+    let (status, body) = post_json("/v1/ai/relay", mid_stream_quota).await;
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+    assert_eq!(body["error"]["code"], "quota_exceeded");
+    assert_eq!(body["error"]["retryable"], false);
+    assert_eq!(body["usage_audit_event"]["status"], "quota_denied");
+    assert_eq!(
+        body["usage_audit_event"]["idempotency_key"],
+        "usage:00000000-0000-0000-0000-000000000557"
+    );
+}
+
+#[tokio::test]
+async fn usage_audit_event_idempotency_key_is_stable_for_replayed_request() {
+    let payload = bound_relay_payload();
+
+    let (first_status, first_body) = post_json("/v1/ai/relay", payload.clone()).await;
+    let (second_status, second_body) = post_json("/v1/ai/relay", payload).await;
+
+    assert_eq!(first_status, StatusCode::OK);
+    assert_eq!(second_status, StatusCode::OK);
+    assert_eq!(
+        first_body["usage_audit_event"]["idempotency_key"],
+        second_body["usage_audit_event"]["idempotency_key"]
+    );
+    assert_eq!(
+        first_body["usage_audit_event"]["idempotency_key"],
+        "usage:00000000-0000-0000-0000-000000000557"
+    );
+}
+
+#[tokio::test]
+async fn runtime_usage_audit_event_projects_to_control_plane_envelopes() {
+    let mut payload = bound_relay_payload();
+    payload["messages"][0]["content"] = json!("simulate:mid_stream_quota");
+    let (status, body) = post_json("/v1/ai/relay", payload).await;
+
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+    let runtime_event: UsageAuditEventV1 =
+        serde_json::from_value(body["usage_audit_event"].clone()).unwrap();
+    let usage_event = runtime_event.to_usage_event();
+    let audit_event = runtime_event.to_audit_event();
+
+    let usage_value = serde_json::to_value(&usage_event).unwrap();
+    let audit_value = serde_json::to_value(&audit_event).unwrap();
+    let usage_round_trip: UsageEvent = serde_json::from_value(usage_value).unwrap();
+    let audit_round_trip: AuditEvent = serde_json::from_value(audit_value).unwrap();
+
+    assert_eq!(
+        usage_round_trip.idempotency_key,
+        runtime_event.idempotency_key
+    );
+    assert_eq!(
+        usage_round_trip.source,
+        taskotter_gateway::contracts::EventSource::Gateway
+    );
+    assert_eq!(
+        usage_round_trip.policy_decision_id,
+        runtime_event.decision_id
+    );
+    assert_eq!(
+        audit_round_trip.policy_decision_id,
+        runtime_event.decision_id
+    );
+    assert_eq!(
+        audit_round_trip.payload.outcome,
+        taskotter_gateway::contracts::AuditOutcome::Denied
+    );
+    assert_eq!(
+        audit_round_trip.payload.feature_flag.as_deref(),
+        Some("gateway.provider_routing.enabled")
+    );
 }
 
 #[tokio::test]
@@ -936,4 +1110,16 @@ fn gateway_simulation_eval_fixture_covers_provider_and_mcp_paths() {
     assert!(report.policy_denial > 0);
     assert!(report.quota_denial > 0);
     assert!(report.mcp_lifecycle > 0);
+}
+
+#[test]
+fn usage_cost_replay_fixture_deduplicates_retry_charges() {
+    let fixture: GatewaySimulationFixture = fixture("gateway_simulation_eval");
+
+    let report = fixture.validate().unwrap();
+
+    assert_eq!(report.usage_replay_idempotency, 1);
+    assert!(report.quota_denial > 0);
+    assert!(report.policy_denial > 0);
+    assert!(report.routing_fallback > 0);
 }

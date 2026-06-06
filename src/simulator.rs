@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::contracts::{
@@ -11,6 +13,8 @@ pub struct GatewaySimulationFixture {
     pub seed: String,
     pub provider_cases: Vec<ProviderSimulationCase>,
     pub mcp_cases: Vec<McpSimulationCase>,
+    #[serde(default)]
+    pub usage_replay_cases: Vec<UsageReplayCase>,
 }
 
 impl GatewaySimulationFixture {
@@ -39,6 +43,9 @@ impl GatewaySimulationFixture {
             case.validate(&mut report)?;
         }
         for case in &self.mcp_cases {
+            case.validate(&mut report)?;
+        }
+        for case in &self.usage_replay_cases {
             case.validate(&mut report)?;
         }
 
@@ -142,8 +149,18 @@ impl ProviderSimulationCase {
                 validate_decision_id(&self.id, decision_id, &self.usage_event)?;
                 report.policy_denial += 1;
             }
-            ProviderSimulationOutcome::QuotaDenial { decision_id, .. } => {
+            ProviderSimulationOutcome::QuotaDenial {
+                decision_id,
+                expected_status,
+                ..
+            } => {
                 validate_decision_id(&self.id, decision_id, &self.usage_event)?;
+                if expected_status.as_deref() != Some("quota_denied") {
+                    return Err(SimulationError::new(
+                        "quota_denial_status_missing",
+                        format!("{} quota denial must declare expected_status", self.id),
+                    ));
+                }
                 report.quota_denial += 1;
             }
         }
@@ -223,6 +240,8 @@ pub enum ProviderSimulationOutcome {
     QuotaDenial {
         decision_id: String,
         max_cost_micro_usd: u64,
+        #[serde(default)]
+        expected_status: Option<String>,
     },
 }
 
@@ -233,6 +252,52 @@ pub struct McpSimulationCase {
     pub lifecycle_events: Vec<McpLifecycleEvent>,
     pub usage_event: UsageEvent,
     pub audit_event: AuditEvent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageReplayCase {
+    pub id: String,
+    pub request: ScopedModelRequest,
+    pub usage_events: Vec<UsageEvent>,
+    pub expected_unique_charge_count: u32,
+}
+
+impl UsageReplayCase {
+    fn validate(&self, report: &mut SimulationReport) -> Result<(), SimulationError> {
+        self.request
+            .validate_boundary()
+            .map_err(|error| SimulationError::from_normalized(&self.id, error))?;
+        if self.usage_events.is_empty() {
+            return Err(SimulationError::new(
+                "usage_replay_events_empty",
+                format!("{} must include retry/replay usage events", self.id),
+            ));
+        }
+
+        let mut unique_charge_keys = HashSet::new();
+        for event in &self.usage_events {
+            validate_usage_lineage(&self.id, event, &self.request)?;
+            if event.idempotency_key.trim().is_empty() {
+                return Err(SimulationError::new(
+                    "usage_idempotency_key_empty",
+                    format!("{} usage event has an empty idempotency key", self.id),
+                ));
+            }
+            unique_charge_keys.insert(event.idempotency_key.as_str());
+        }
+
+        if unique_charge_keys.len() != self.expected_unique_charge_count as usize {
+            return Err(SimulationError::new(
+                "usage_replay_unique_charge_mismatch",
+                format!("{} replay would record duplicate usage charges", self.id),
+            ));
+        }
+
+        if self.usage_events.len() > unique_charge_keys.len() {
+            report.usage_replay_idempotency += 1;
+        }
+        Ok(())
+    }
 }
 
 impl McpSimulationCase {
@@ -336,6 +401,7 @@ pub struct SimulationReport {
     pub cancellation: u32,
     pub policy_denial: u32,
     pub quota_denial: u32,
+    pub usage_replay_idempotency: u32,
     pub mcp_lifecycle: u32,
     pub mcp_gateway_hosted: u32,
 }

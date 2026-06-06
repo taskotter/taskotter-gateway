@@ -45,6 +45,10 @@ pub struct AiRelayRequest {
     pub stream: bool,
     #[serde(default)]
     pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub requested_max_tokens: Option<u64>,
+    #[serde(default)]
+    pub estimated_cost_micro_usd: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +65,8 @@ pub async fn relay_ai_request(
         subject: payload.subject.clone(),
         provider: payload.provider.clone(),
         operation: "ai.relay".to_string(),
+        requested_max_tokens: payload.requested_max_tokens,
+        estimated_cost_micro_usd: payload.estimated_cost_micro_usd,
     };
     let decision = state.policy.evaluate(policy_check).await;
 
@@ -128,6 +134,11 @@ pub enum GatewayError {
         timeout_ms: Option<u64>,
         usage_audit_event: Option<UsageAuditEventV1>,
     },
+    #[error("{message}")]
+    QuotaExceeded {
+        message: String,
+        usage_audit_event: Option<UsageAuditEventV1>,
+    },
 }
 
 impl GatewayError {
@@ -146,10 +157,18 @@ impl GatewayError {
         }
     }
 
+    pub fn quota_exceeded(message: impl Into<String>) -> Self {
+        Self::QuotaExceeded {
+            message: message.into(),
+            usage_audit_event: None,
+        }
+    }
+
     fn usage_status(&self) -> UsageAttemptStatus {
         match self {
             GatewayError::PolicyDenied { .. } => UsageAttemptStatus::Denied,
             GatewayError::Timeout { .. } => UsageAttemptStatus::Timeout,
+            GatewayError::QuotaExceeded { .. } => UsageAttemptStatus::QuotaDenied,
         }
     }
 
@@ -166,6 +185,10 @@ impl GatewayError {
             } => GatewayError::Timeout {
                 message,
                 timeout_ms,
+                usage_audit_event: Some(usage_audit_event),
+            },
+            GatewayError::QuotaExceeded { message, .. } => GatewayError::QuotaExceeded {
+                message,
                 usage_audit_event: Some(usage_audit_event),
             },
         }
@@ -215,6 +238,19 @@ impl IntoResponse for GatewayError {
                     message,
                     retryable: true,
                     timeout_ms,
+                },
+                usage_audit_event,
+            ),
+            GatewayError::QuotaExceeded {
+                message,
+                usage_audit_event,
+            } => (
+                StatusCode::PAYMENT_REQUIRED,
+                ErrorShape {
+                    code: "quota_exceeded",
+                    message,
+                    retryable: false,
+                    timeout_ms: None,
                 },
                 usage_audit_event,
             ),
